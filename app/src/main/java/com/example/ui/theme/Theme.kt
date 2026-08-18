@@ -55,7 +55,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun MyApplicationTheme(
+fun MediSafeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false, // prefer our custom intentional medical/productivity palette
     content: @Composable () -> Unit,

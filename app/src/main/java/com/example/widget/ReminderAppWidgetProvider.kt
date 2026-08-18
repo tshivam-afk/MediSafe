@@ -15,6 +15,7 @@ import com.example.data.model.ReminderCategory
 import com.example.util.DateTimeUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -25,7 +26,7 @@ class ReminderAppWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        for (appWidgetId in appWidgetIds) {
+        appWidgetIds.forEach { appWidgetId ->
             updateWidget(context, appWidgetManager, appWidgetId)
         }
     }
@@ -36,16 +37,16 @@ class ReminderAppWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
+        private const val TAG = "ReminderWidget"
+        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
         fun updateAllWidgets(context: Context) {
-            val appWidgetManager = AppWidgetManager.getInstance(context)
-            val componentName = ComponentName(context, ReminderAppWidgetProvider::class.java)
+            val appContext = context.applicationContext
+            val appWidgetManager = AppWidgetManager.getInstance(appContext)
+            val componentName = ComponentName(appContext, ReminderAppWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-            if (appWidgetIds.isNotEmpty()) {
-                val intent = Intent(context, ReminderAppWidgetProvider::class.java).apply {
-                    action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, appWidgetIds)
-                }
-                context.sendBroadcast(intent)
+            appWidgetIds.forEach { appWidgetId ->
+                updateWidget(appContext, appWidgetManager, appWidgetId)
             }
         }
 
@@ -55,9 +56,8 @@ class ReminderAppWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int
         ) {
             val views = RemoteViews(context.packageName, R.layout.reminder_widget_layout)
-
             val openAppIntent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
             val pendingIntent = PendingIntent.getActivity(
                 context,
@@ -67,13 +67,12 @@ class ReminderAppWidgetProvider : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
 
-            CoroutineScope(Dispatchers.IO).launch {
+            scope.launch {
                 try {
-                    val db = AppDatabase.getInstance(context)
-                    val activeReminders = db.reminderDao().getActiveRemindersSync()
+                    val activeReminders = AppDatabase.getInstance(context).reminderDao()
+                        .getActiveRemindersSync()
                         .filter { !it.isCompleted }
                         .sortedBy { it.effectiveTriggerTimeMillis }
-
                     val nextReminder = activeReminders.firstOrNull()
 
                     withContext(Dispatchers.Main) {
@@ -87,25 +86,27 @@ class ReminderAppWidgetProvider : AppWidgetProvider() {
                             views.setTextViewText(R.id.widget_reminder_title, "$emoji ${nextReminder.title}")
                             views.setTextViewText(
                                 R.id.widget_reminder_details,
-                                if (nextReminder.dosageOrDetails.isNotBlank()) nextReminder.dosageOrDetails else "Scheduled reminder"
+                                nextReminder.dosageOrDetails.ifBlank { "Scheduled reminder" }
                             )
-
                             val countdown = DateTimeUtils.getCountdown(nextReminder.effectiveTriggerTimeMillis)
-                            val timeStr = DateTimeUtils.getRelativeTimeLabel(nextReminder.effectiveTriggerTimeMillis)
-
-                            views.setTextViewText(R.id.widget_badge_time, if (countdown.isDue) "DUE NOW" else countdown.formattedString)
-                            views.setTextViewText(R.id.widget_time_label, timeStr)
+                            views.setTextViewText(
+                                R.id.widget_badge_time,
+                                if (countdown.isDue) "DUE NOW" else countdown.formattedString
+                            )
+                            views.setTextViewText(
+                                R.id.widget_time_label,
+                                DateTimeUtils.getRelativeTimeLabel(nextReminder.effectiveTriggerTimeMillis)
+                            )
                         } else {
-                            views.setTextViewText(R.id.widget_reminder_title, "All Caught Up! 🎉")
-                            views.setTextViewText(R.id.widget_reminder_details, "No pending pills or tasks today")
+                            views.setTextViewText(R.id.widget_reminder_title, "All caught up")
+                            views.setTextViewText(R.id.widget_reminder_details, "No pending pills or tasks")
                             views.setTextViewText(R.id.widget_badge_time, "Relax")
-                            views.setTextViewText(R.id.widget_time_label, "Tap to create a new reminder")
+                            views.setTextViewText(R.id.widget_time_label, "Tap to create a reminder")
                         }
-
                         appWidgetManager.updateAppWidget(appWidgetId, views)
                     }
                 } catch (e: Exception) {
-                    Log.e("ReminderWidget", "Error updating widget", e)
+                    Log.e(TAG, "Error updating widget", e)
                 }
             }
         }

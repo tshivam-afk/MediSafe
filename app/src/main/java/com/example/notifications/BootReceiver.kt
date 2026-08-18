@@ -8,13 +8,21 @@ import com.example.widget.ReminderAppWidgetProvider
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action == Intent.ACTION_BOOT_COMPLETED ||
-            intent?.action == Intent.ACTION_MY_PACKAGE_REPLACED ||
-            intent?.action == "android.intent.action.QUICKBOOT_POWERON"
-        ) {
-            Log.d("BootReceiver", "Device rebooted, rescheduling alarms...")
+        val action = intent?.action ?: return
+        val shouldReschedule = action == Intent.ACTION_BOOT_COMPLETED ||
+            action == Intent.ACTION_LOCKED_BOOT_COMPLETED ||
+            action == Intent.ACTION_MY_PACKAGE_REPLACED ||
+            action == "android.intent.action.QUICKBOOT_POWERON"
+        if (!shouldReschedule) return
+
+        Log.d("BootReceiver", "Rescheduling alarms after $action")
+        val pendingResult = goAsync()
+        try {
+            NotificationHelper.ensureChannel(context)
             AlarmScheduler.rescheduleAllActive(context)
             ReminderAppWidgetProvider.updateAllWidgets(context)
+        } finally {
+            pendingResult.finish()
         }
     }
 }

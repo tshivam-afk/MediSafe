@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">Med &amp; Task Reminder</string>
+    <string name="app_name">MediSafe</string>
+    <string name="widget_description">Shows your next medication, task, or event reminder.</string>
 </resources>

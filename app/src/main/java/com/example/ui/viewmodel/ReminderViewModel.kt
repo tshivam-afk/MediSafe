@@ -12,14 +12,12 @@ import com.example.data.model.ReminderItem
 import com.example.data.model.ReminderLog
 import com.example.data.repository.ReminderRepository
 import com.example.util.DateTimeUtils
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 enum class MainTab(val title: String, val emoji: String) {
@@ -39,7 +37,10 @@ data class TodayAdherenceStats(
 
 class ReminderViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository: ReminderRepository
+    private val repository = ReminderRepository(
+        AppDatabase.getInstance(application).reminderDao(),
+        application
+    )
 
     private val _selectedTab = MutableStateFlow(MainTab.ALL)
     val selectedTab: StateFlow<MainTab> = _selectedTab.asStateFlow()
@@ -59,31 +60,15 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
     private val _detailReminder = MutableStateFlow<ReminderItem?>(null)
     val detailReminder: StateFlow<ReminderItem?> = _detailReminder.asStateFlow()
 
-    init {
-        val db = AppDatabase.getInstance(application)
-        repository = ReminderRepository(db.reminderDao(), application)
-
-        // Seed sample reminders if database is empty on first launch
-        viewModelScope.launch {
-            repository.seedInitialDataIfEmpty()
-        }
-
-        // Live ticker updating current time every 1 second for live countdown
-        viewModelScope.launch {
-            while (isActive) {
-                _currentTimeMillis.value = System.currentTimeMillis()
-                delay(1000)
-            }
-        }
-    }
+    private val _userMessage = MutableStateFlow<String?>(null)
+    val userMessage: StateFlow<String?> = _userMessage.asStateFlow()
 
     val allReminders: StateFlow<List<ReminderItem>> = repository.allReminders
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val allLogs: StateFlow<List<ReminderLog>> = repository.allLogs
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    // Filtered list based on current Tab & Search Query
     val filteredReminders: StateFlow<List<ReminderItem>> = combine(
         allReminders,
         _selectedTab,
@@ -97,43 +82,55 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
                 MainTab.EVENTS -> item.categoryEnum == ReminderCategory.EVENT
                 MainTab.HISTORY -> true
             }
-            val matchesQuery = if (query.isBlank()) {
-                true
-            } else {
+            val matchesQuery = query.isBlank() ||
                 item.title.contains(query, ignoreCase = true) ||
-                        item.dosageOrDetails.contains(query, ignoreCase = true)
-            }
+                item.dosageOrDetails.contains(query, ignoreCase = true)
             matchesTab && matchesQuery
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    // Next upcoming reminder (earliest active uncompleted item)
     val nextUpcomingReminder: StateFlow<ReminderItem?> = allReminders
         .combine(_currentTimeMillis) { reminders, _ ->
             reminders
                 .filter { it.isActive && !it.isCompleted }
                 .minByOrNull { it.effectiveTriggerTimeMillis }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    // Today's Adherence Stats
     val todayStats: StateFlow<TodayAdherenceStats> = combine(
         allReminders,
-        allLogs
-    ) { reminders, logs ->
-        val todayItems = reminders.filter { DateTimeUtils.isToday(it.scheduledTimeMillis) }
-        val completedCount = todayItems.count { it.isCompleted }
-        val totalCount = todayItems.size
+        allLogs,
+        _currentTimeMillis
+    ) { reminders, logs, now ->
+        val completedIds = logs
+            .filter {
+                DateTimeUtils.isToday(it.timestampMillis) &&
+                    (it.actionEnum == LogAction.TAKEN || it.actionEnum == LogAction.COMPLETED)
+            }
+            .map { it.reminderId }
+            .toSet()
+        val scheduledToday = reminders.filter { reminder ->
+            reminder.isActive && (
+                DateTimeUtils.isToday(reminder.effectiveTriggerTimeMillis) ||
+                    DateTimeUtils.isToday(reminder.scheduledTimeMillis) ||
+                    completedIds.contains(reminder.id)
+                )
+        }
+        val completedCount = completedIds.size
+        val upcoming = scheduledToday.count { !it.isCompleted && !completedIds.contains(it.id) }
+        val totalCount = maxOf(scheduledToday.size, completedCount + upcoming)
         val percentage = if (totalCount > 0) ((completedCount.toFloat() / totalCount) * 100).toInt() else 100
-        val upcoming = todayItems.count { !it.isCompleted }
-
         TodayAdherenceStats(
             totalToday = totalCount,
             completedToday = completedCount,
-            percentage = percentage,
+            percentage = percentage.coerceIn(0, 100),
             upcomingCount = upcoming
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TodayAdherenceStats())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayAdherenceStats())
+
+    fun refreshNow() {
+        _currentTimeMillis.value = System.currentTimeMillis()
+    }
 
     fun setSelectedTab(tab: MainTab) {
         _selectedTab.value = tab
@@ -143,8 +140,12 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         _searchQuery.value = query
     }
 
+    fun consumeUserMessage() {
+        _userMessage.value = null
+    }
+
     fun openCreateSheet(presetCategory: ReminderCategory? = null) {
-        val defaultTime = System.currentTimeMillis() + (60 * 60 * 1000) // 1 hour from now
+        val defaultTime = System.currentTimeMillis() + (60 * 60 * 1000)
         val initialItem = ReminderItem(
             title = "",
             category = (presetCategory ?: ReminderCategory.MEDICATION).name,
@@ -183,71 +184,91 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         _detailReminder.value = item
     }
 
+    fun openDetailById(id: Long) {
+        viewModelScope.launch {
+            runCatching { repository.getReminderById(id) }
+                .onSuccess { reminder -> if (reminder != null) _detailReminder.value = reminder }
+                .onFailure { _userMessage.value = "Couldn't open that reminder." }
+        }
+    }
+
     fun closeDetail() {
         _detailReminder.value = null
     }
 
     fun saveReminder(item: ReminderItem) {
         viewModelScope.launch {
-            if (item.id == 0L) {
-                repository.saveReminder(item)
-            } else {
-                repository.updateReminder(item)
-            }
-            closeSheet()
-            // If the detail modal was showing this item, update it
-            if (_detailReminder.value?.id == item.id) {
-                _detailReminder.value = item
+            runCatching {
+                if (item.id == 0L) repository.saveReminder(item) else repository.updateReminder(item)
+            }.onSuccess {
+                closeSheet()
+                if (_detailReminder.value?.id == item.id) {
+                    _detailReminder.value = repository.getReminderById(item.id) ?: item
+                }
+            }.onFailure {
+                _userMessage.value = "Couldn't save reminder. Please try again."
             }
         }
     }
 
     fun deleteReminder(item: ReminderItem) {
         viewModelScope.launch {
-            repository.deleteReminder(item)
-            if (_detailReminder.value?.id == item.id) {
-                _detailReminder.value = null
-            }
-            closeSheet()
+            runCatching { repository.deleteReminder(item) }
+                .onSuccess {
+                    if (_detailReminder.value?.id == item.id) _detailReminder.value = null
+                    closeSheet()
+                }
+                .onFailure { _userMessage.value = "Couldn't delete reminder." }
         }
     }
 
     fun markDoneOrTaken(item: ReminderItem) {
         viewModelScope.launch {
-            repository.markDoneOrTaken(item)
-            if (_detailReminder.value?.id == item.id) {
-                _detailReminder.value = repository.getReminderById(item.id)
-            }
+            runCatching { repository.markDoneOrTaken(item) }
+                .onSuccess {
+                    if (_detailReminder.value?.id == item.id) {
+                        _detailReminder.value = repository.getReminderById(item.id)
+                    }
+                }
+                .onFailure { _userMessage.value = "Couldn't update reminder." }
         }
     }
 
     fun snoozeReminder(item: ReminderItem, minutes: Int = 15) {
         viewModelScope.launch {
-            repository.snoozeReminder(item, minutes)
-            if (_detailReminder.value?.id == item.id) {
-                _detailReminder.value = repository.getReminderById(item.id)
-            }
+            runCatching { repository.snoozeReminder(item, minutes) }
+                .onSuccess {
+                    if (_detailReminder.value?.id == item.id) {
+                        _detailReminder.value = repository.getReminderById(item.id)
+                    }
+                }
+                .onFailure { _userMessage.value = "Couldn't snooze reminder." }
         }
     }
 
     fun skipReminder(item: ReminderItem) {
         viewModelScope.launch {
-            repository.skipReminder(item)
-            if (_detailReminder.value?.id == item.id) {
-                _detailReminder.value = repository.getReminderById(item.id)
-            }
+            runCatching { repository.skipReminder(item) }
+                .onSuccess {
+                    if (_detailReminder.value?.id == item.id) {
+                        _detailReminder.value = repository.getReminderById(item.id)
+                    }
+                }
+                .onFailure { _userMessage.value = "Couldn't skip reminder." }
         }
     }
 
     fun clearAllLogs() {
         viewModelScope.launch {
-            repository.clearLogs()
+            runCatching { repository.clearLogs() }
+                .onFailure { _userMessage.value = "Couldn't clear history." }
         }
     }
 
     fun deleteLog(logId: Long) {
         viewModelScope.launch {
-            repository.deleteLogById(logId)
+            runCatching { repository.deleteLogById(logId) }
+                .onFailure { _userMessage.value = "Couldn't delete history item." }
         }
     }
 }

@@ -1,17 +1,24 @@
 package com.example.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "reminders")
+@Entity(
+    tableName = "reminders",
+    indices = [
+        Index(value = ["isActive"]),
+        Index(value = ["scheduledTimeMillis"])
+    ]
+)
 data class ReminderItem(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val title: String,
-    val category: String = ReminderCategory.MEDICATION.name, // ReminderCategory
+    val category: String = ReminderCategory.MEDICATION.name,
     val dosageOrDetails: String = "",
-    val scheduledTimeMillis: Long, // timestamp when the reminder is set to fire
-    val recurrence: String = RecurrenceType.DAILY.name, // RecurrenceType
+    val scheduledTimeMillis: Long,
+    val recurrence: String = RecurrenceType.DAILY.name,
     val customIntervalHours: Int = 0,
     val isCompleted: Boolean = false,
     val completedAtMillis: Long? = null,
@@ -25,29 +32,14 @@ data class ReminderItem(
     val snoozedUntilMillis: Long? = null
 ) {
     val categoryEnum: ReminderCategory
-        get() = try {
-            ReminderCategory.valueOf(category)
-        } catch (e: Exception) {
-            ReminderCategory.MEDICATION
-        }
+        get() = runCatching { ReminderCategory.valueOf(category) }.getOrDefault(ReminderCategory.MEDICATION)
 
     val recurrenceEnum: RecurrenceType
-        get() = try {
-            RecurrenceType.valueOf(recurrence)
-        } catch (e: Exception) {
-            RecurrenceType.DAILY
-        }
+        get() = runCatching { RecurrenceType.valueOf(recurrence) }.getOrDefault(RecurrenceType.DAILY)
 
     val priorityEnum: Priority
-        get() = try {
-            Priority.valueOf(priority)
-        } catch (e: Exception) {
-            Priority.NORMAL
-        }
+        get() = runCatching { Priority.valueOf(priority) }.getOrDefault(Priority.NORMAL)
 
-    /**
-     * The actual trigger time taking snooze into account
-     */
     val effectiveTriggerTimeMillis: Long
         get() = snoozedUntilMillis ?: scheduledTimeMillis
 }

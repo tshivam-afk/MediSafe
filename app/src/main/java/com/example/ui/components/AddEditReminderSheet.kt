@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Vibration
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -137,7 +136,7 @@ fun AddEditReminderSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                ReminderCategory.values().forEach { category ->
+                ReminderCategory.entries.forEach { category ->
                     val isSelected = selectedCategory == category
                     FilterChip(
                         selected = isSelected,
@@ -431,7 +430,7 @@ fun AddEditReminderSheet(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                RecurrenceType.values().forEach { rec ->
+                RecurrenceType.entries.forEach { rec ->
                     val isSelected = recurrence == rec
                     FilterChip(
                         selected = isSelected,
@@ -463,7 +462,7 @@ fun AddEditReminderSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Priority.values().forEach { prio ->
+                Priority.entries.forEach { prio ->
                     val isSelected = priority == prio
                     val prioColor = when (prio) {
                         Priority.LOW -> Color(0xFF5B6B79)
@@ -474,9 +473,7 @@ fun AddEditReminderSheet(
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = if (isSelected) prioColor.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
-                        border = if (isSelected) ButtonDefaults.outlinedButtonBorder.copy(
-                            brush = androidx.compose.ui.graphics.SolidColor(prioColor)
-                        ) else null,
+                        border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, prioColor) else null,
                         modifier = Modifier
                             .weight(1f)
                             .clickable { priority = prio }

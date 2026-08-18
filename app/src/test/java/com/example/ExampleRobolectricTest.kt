@@ -12,10 +12,9 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class ExampleRobolectricTest {
 
-  @Test
-  fun `read string from context`() {
-    val context = ApplicationProvider.getApplicationContext<Context>()
-    val appName = context.getString(R.string.app_name)
-    assertEquals("Med & Task Reminder", appName)
-  }
+    @Test
+    fun appNameIsMediSafe() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        assertEquals("MediSafe", context.getString(R.string.app_name))
+    }
 }

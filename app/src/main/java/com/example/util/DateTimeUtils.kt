@@ -175,30 +175,40 @@ object DateTimeUtils {
             RecurrenceType.WEEKLY -> {
                 val dayOfWeek = baseCal.get(Calendar.DAY_OF_WEEK)
                 val next = Calendar.getInstance().apply {
-                    set(Calendar.DAY_OF_WEEK, dayOfWeek)
+                    timeInMillis = fromTimeMillis
                     set(Calendar.HOUR_OF_DAY, hour)
                     set(Calendar.MINUTE, minute)
                     set(Calendar.SECOND, 0)
                     set(Calendar.MILLISECOND, 0)
                 }
-                if (next.timeInMillis <= fromTimeMillis) {
-                    next.add(Calendar.WEEK_OF_YEAR, 1)
+                var guard = 0
+                while (
+                    guard < 14 &&
+                    (next.get(Calendar.DAY_OF_WEEK) != dayOfWeek || next.timeInMillis <= fromTimeMillis)
+                ) {
+                    next.add(Calendar.DAY_OF_YEAR, 1)
+                    guard++
                 }
                 next.timeInMillis
             }
-            RecurrenceType.EVERY_4_HOURS -> computeIntervalTime(fromTimeMillis, 4)
-            RecurrenceType.EVERY_6_HOURS -> computeIntervalTime(fromTimeMillis, 6)
-            RecurrenceType.EVERY_8_HOURS -> computeIntervalTime(fromTimeMillis, 8)
-            RecurrenceType.EVERY_12_HOURS -> computeIntervalTime(fromTimeMillis, 12)
+            RecurrenceType.EVERY_4_HOURS -> computeIntervalTime(currentScheduledMillis, fromTimeMillis, 4)
+            RecurrenceType.EVERY_6_HOURS -> computeIntervalTime(currentScheduledMillis, fromTimeMillis, 6)
+            RecurrenceType.EVERY_8_HOURS -> computeIntervalTime(currentScheduledMillis, fromTimeMillis, 8)
+            RecurrenceType.EVERY_12_HOURS -> computeIntervalTime(currentScheduledMillis, fromTimeMillis, 12)
         }
     }
 
-    private fun computeIntervalTime(fromTimeMillis: Long, hours: Int): Long {
-        val cal = Calendar.getInstance().apply {
-            timeInMillis = fromTimeMillis
-            add(Calendar.HOUR_OF_DAY, hours)
-        }
-        return cal.timeInMillis
+    private fun computeIntervalTime(
+        currentScheduledMillis: Long,
+        fromTimeMillis: Long,
+        hours: Int
+    ): Long {
+        val intervalMs = hours.coerceAtLeast(1) * 60L * 60L * 1000L
+        val next = if (currentScheduledMillis > 0L) currentScheduledMillis else fromTimeMillis + intervalMs
+        if (next > fromTimeMillis) return next
+        val elapsed = fromTimeMillis - next
+        val steps = (elapsed / intervalMs) + 1
+        return next + (steps * intervalMs)
     }
 
     /**

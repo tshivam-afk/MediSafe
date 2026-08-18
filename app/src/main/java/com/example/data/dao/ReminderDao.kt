@@ -24,9 +24,6 @@ interface ReminderDao {
     @Query("SELECT * FROM reminders WHERE id = :id LIMIT 1")
     suspend fun getReminderById(id: Long): ReminderItem?
 
-    @Query("SELECT * FROM reminders WHERE id = :id LIMIT 1")
-    fun getReminderByIdFlow(id: Long): Flow<ReminderItem?>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertReminder(item: ReminderItem): Long
 
@@ -53,4 +50,7 @@ interface ReminderDao {
 
     @Query("DELETE FROM reminder_logs WHERE id = :id")
     suspend fun deleteLogById(id: Long)
+
+    @Query("DELETE FROM reminder_logs WHERE reminderId = :reminderId")
+    suspend fun deleteLogsForReminder(reminderId: Long)
 }

@@ -1,13 +1,12 @@
 package com.example.ui.screens
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -31,22 +30,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Event
-import androidx.compose.material.icons.outlined.Medication
-import androidx.compose.material.icons.outlined.TaskAlt
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,15 +53,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.data.model.ReminderCategory
+import com.example.notifications.AlarmScheduler
 import com.example.ui.components.AddEditReminderSheet
 import com.example.ui.components.HeaderAndStats
 import com.example.ui.components.HeroCountdownCard
@@ -76,7 +73,8 @@ import com.example.ui.components.ReminderDetailDialog
 import com.example.ui.components.ReminderListItem
 import com.example.ui.viewmodel.MainTab
 import com.example.ui.viewmodel.ReminderViewModel
-import com.example.util.DateTimeUtils
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 @Composable
 fun MainScreen(
@@ -95,8 +93,29 @@ fun MainScreen(
     val isSheetOpen by viewModel.isSheetOpen.collectAsStateWithLifecycle()
     val sheetReminder by viewModel.sheetReminder.collectAsStateWithLifecycle()
     val detailReminder by viewModel.detailReminder.collectAsStateWithLifecycle()
+    val userMessage by viewModel.userMessage.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var canScheduleExactAlarms by remember {
+        mutableStateOf(AlarmScheduler.canScheduleExactAlarms(context))
+    }
 
-    // Notification Permission Check (Android 13+)
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            canScheduleExactAlarms = AlarmScheduler.canScheduleExactAlarms(context)
+            while (isActive) {
+                viewModel.refreshNow()
+                delay(1000)
+            }
+        }
+    }
+
+    LaunchedEffect(userMessage) {
+        val message = userMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.consumeUserMessage()
+    }
+
     var hasNotificationPermission by remember {
         mutableStateOf(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -116,6 +135,7 @@ fun MainScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (selectedTab != MainTab.HISTORY) {
                 ExtendedFloatingActionButton(
@@ -142,7 +162,40 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Permission Alert Banner if not granted
+            if (!canScheduleExactAlarms && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Surface(
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Allow exact alarms so reminders fire on time",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = {
+                                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                                runCatching { context.startActivity(intent) }
+                                canScheduleExactAlarms = AlarmScheduler.canScheduleExactAlarms(context)
+                            }
+                        ) {
+                            Text("Allow", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
             if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
@@ -231,7 +284,7 @@ fun MainScreen(
                     .padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                MainTab.values().forEach { tab ->
+                MainTab.entries.forEach { tab ->
                     val isSelected = selectedTab == tab
                     FilterChip(
                         selected = isSelected,
