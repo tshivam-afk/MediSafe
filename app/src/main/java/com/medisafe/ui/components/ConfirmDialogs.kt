@@ -31,10 +31,20 @@ fun ConfirmRequestDialog(
                 if (isMed) "Take now" else "Mark done"
             )
         }
+        is ConfirmRequest.Skip -> Triple(
+            "Skip this occurrence?",
+            "“${request.item.title}” will be skipped and logged. You can undo from the snackbar.",
+            "Skip"
+        )
         is ConfirmRequest.UndoLog -> Triple(
             "Undo this history entry?",
             "Remove “${request.log.reminderTitle} · ${request.log.actionEnum.displayName}” from history.",
             "Undo"
+        )
+        is ConfirmRequest.ClearHistory -> Triple(
+            "Clear all history?",
+            "Every dose and task log will be permanently removed. This cannot be undone.",
+            "Clear"
         )
     }
     AlertDialog(

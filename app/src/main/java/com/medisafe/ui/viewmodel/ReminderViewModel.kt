@@ -34,8 +34,7 @@ enum class MainTab(val title: String, val emoji: String) {
     ALL("All", "⚡"),
     MEDICATIONS("Meds", "💊"),
     TASKS("Tasks", "📋"),
-    EVENTS("Events", "🗓️"),
-    HISTORY("History", "⏱️")
+    EVENTS("Events", "🗓️")
 }
 
 data class TodayAdherenceStats(
@@ -62,7 +61,9 @@ sealed class UndoAction {
 sealed class ConfirmRequest {
     data class Delete(val items: List<ReminderItem>) : ConfirmRequest()
     data class Take(val item: ReminderItem) : ConfirmRequest()
+    data class Skip(val item: ReminderItem) : ConfirmRequest()
     data class UndoLog(val log: ReminderLog) : ConfirmRequest()
+    data object ClearHistory : ConfirmRequest()
 }
 
 class ReminderViewModel(application: Application) : AndroidViewModel(application) {
@@ -137,7 +138,6 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
                 MainTab.MEDICATIONS -> item.categoryEnum == ReminderCategory.MEDICATION
                 MainTab.TASKS -> item.categoryEnum == ReminderCategory.DAILY_TASK
                 MainTab.EVENTS -> item.categoryEnum == ReminderCategory.EVENT
-                MainTab.HISTORY -> true
             }
             val matchesQuery = query.isBlank() ||
                 item.title.contains(query, ignoreCase = true) ||
@@ -243,8 +243,16 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         _confirmRequest.value = ConfirmRequest.Take(item)
     }
 
+    fun requestSkip(item: ReminderItem) {
+        _confirmRequest.value = ConfirmRequest.Skip(item)
+    }
+
     fun requestUndoLog(log: ReminderLog) {
         _confirmRequest.value = ConfirmRequest.UndoLog(log)
+    }
+
+    fun requestClearHistory() {
+        _confirmRequest.value = ConfirmRequest.ClearHistory
     }
 
     fun dismissConfirm() {
@@ -255,7 +263,9 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         when (val request = _confirmRequest.value) {
             is ConfirmRequest.Delete -> deleteReminders(request.items)
             is ConfirmRequest.Take -> markDoneOrTaken(request.item)
+            is ConfirmRequest.Skip -> skipReminder(request.item)
             is ConfirmRequest.UndoLog -> undoHistoryLog(request.log)
+            is ConfirmRequest.ClearHistory -> clearAllLogs()
             null -> Unit
         }
         _confirmRequest.value = null

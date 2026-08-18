@@ -308,7 +308,7 @@ fun MainScreen(
                     logs = filteredLogs,
                     filters = historyFilters,
                     onFiltersChange = { viewModel.setHistoryFilters(it) },
-                    onClearAll = { viewModel.clearAllLogs() },
+                    onClearAll = { viewModel.requestClearHistory() },
                     onDeleteLog = { viewModel.deleteLog(it) },
                     onUndoLog = { viewModel.requestUndoLog(it) }
                 )
@@ -358,7 +358,7 @@ fun MainScreen(
             onDismiss = { viewModel.closeDetail() },
             onTakeOrDone = { viewModel.requestTake(it) },
             onSnooze = { item, mins -> viewModel.snoozeReminder(item, mins) },
-            onSkip = { viewModel.skipReminder(it) },
+            onSkip = { viewModel.requestSkip(it) },
             onEdit = {
                 viewModel.closeDetail()
                 viewModel.openEditSheet(it)

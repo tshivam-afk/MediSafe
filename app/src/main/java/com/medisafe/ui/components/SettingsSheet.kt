@@ -147,12 +147,6 @@ fun SettingsSheet(
 
 @Composable
 private fun ImportBackupButton(onImport: (String) -> Unit) {
-    val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-    }
-    // Actual read is handled by parent with a dedicated launcher that has context.
     val context = androidx.compose.ui.platform.LocalContext.current
     val readLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
