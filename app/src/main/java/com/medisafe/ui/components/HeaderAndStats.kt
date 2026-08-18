@@ -48,6 +48,7 @@ fun HeaderAndStats(
     currentTimeMillis: Long,
     weekly: List<DayAdherence> = emptyList(),
     onOpenSettings: () -> Unit = {},
+    showTitleBar: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -55,8 +56,7 @@ fun HeaderAndStats(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        // App Title & Current Date Bar
-        Row(
+        if (showTitleBar) Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically

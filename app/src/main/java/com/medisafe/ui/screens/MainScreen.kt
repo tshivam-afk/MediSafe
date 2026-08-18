@@ -19,36 +19,38 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Surface
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -71,26 +74,28 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.medisafe.data.model.ReminderCategory
 import com.medisafe.notifications.AlarmScheduler
 import com.medisafe.ui.components.AddEditReminderSheet
+import com.medisafe.ui.components.CompactNextUp
 import com.medisafe.ui.components.HeaderAndStats
-import com.medisafe.ui.components.HeroCountdownCard
 import com.medisafe.ui.components.HistoryLogTab
 import com.medisafe.ui.components.ReminderDetailDialog
 import com.medisafe.ui.components.ReminderListItem
 import com.medisafe.ui.components.SettingsSheet
+import com.medisafe.ui.viewmodel.AppSection
 import com.medisafe.ui.viewmodel.MainTab
 import com.medisafe.ui.viewmodel.ReminderViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     viewModel: ReminderViewModel,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-
     val filteredReminders by viewModel.filteredReminders.collectAsStateWithLifecycle()
     val selectedTab by viewModel.selectedTab.collectAsStateWithLifecycle()
+    val section by viewModel.section.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val nextUpcomingReminder by viewModel.nextUpcomingReminder.collectAsStateWithLifecycle()
     val todayStats by viewModel.todayStats.collectAsStateWithLifecycle()
@@ -106,11 +111,13 @@ fun MainScreen(
     val undoAction by viewModel.undoAction.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
+    var showSearch by remember { mutableStateOf(false) }
+    var hidePermissionBanner by remember { mutableStateOf(false) }
     var canScheduleExactAlarms by remember {
         mutableStateOf(AlarmScheduler.canScheduleExactAlarms(context))
     }
 
-    LaunchedEffect(lifecycleOwner, selectedTab, nextUpcomingReminder?.effectiveTriggerTimeMillis, detailReminder?.id) {
+    LaunchedEffect(lifecycleOwner, section, nextUpcomingReminder?.effectiveTriggerTimeMillis, detailReminder?.id) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             canScheduleExactAlarms = AlarmScheduler.canScheduleExactAlarms(context)
             while (isActive) {
@@ -118,7 +125,7 @@ fun MainScreen(
                 val remaining = nextUpcomingReminder?.effectiveTriggerTimeMillis
                     ?.minus(System.currentTimeMillis())
                 val interval = when {
-                    selectedTab == MainTab.HISTORY && detailReminder == null -> 30_000L
+                    section != AppSection.HOME && detailReminder == null -> 30_000L
                     remaining == null -> 30_000L
                     remaining <= 2 * 60_000L -> 1_000L
                     remaining <= 15 * 60_000L -> 5_000L
@@ -136,11 +143,7 @@ fun MainScreen(
             actionLabel = if (undoAction != null) "Undo" else null,
             duration = SnackbarDuration.Short
         )
-        if (result == SnackbarResult.ActionPerformed) {
-            viewModel.undoLastAction()
-        } else {
-            viewModel.clearUndo()
-        }
+        if (result == SnackbarResult.ActionPerformed) viewModel.undoLastAction() else viewModel.clearUndo()
         viewModel.consumeUserMessage()
     }
 
@@ -150,9 +153,7 @@ fun MainScreen(
         if (uri == null) return@rememberLauncherForActivityResult
         viewModel.exportBackup { json ->
             runCatching {
-                context.contentResolver.openOutputStream(uri)?.use { stream ->
-                    stream.write(json.toByteArray())
-                }
+                context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
             }
         }
     }
@@ -160,26 +161,75 @@ fun MainScreen(
     var hasNotificationPermission by remember {
         mutableStateOf(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                    PackageManager.PERMISSION_GRANTED
             } else true
         )
     }
-
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        hasNotificationPermission = isGranted
-    }
+        ActivityResultContracts.RequestPermission()
+    ) { hasNotificationPermission = it }
+
+    val needsAlertPermission = !hidePermissionBanner && (
+        (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ||
+            (!canScheduleExactAlarms && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+        )
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        when (section) {
+                            AppSection.HOME -> "MediSafe"
+                            AppSection.HISTORY -> "History"
+                            AppSection.INSIGHTS -> "Insights"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                actions = {
+                    if (section == AppSection.HOME) {
+                        IconButton(
+                            onClick = { showSearch = !showSearch },
+                            modifier = Modifier.testTag("search_toggle")
+                        ) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
+                    }
+                    IconButton(onClick = { viewModel.openSettings() }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = section == AppSection.HOME,
+                    onClick = { viewModel.setSection(AppSection.HOME) },
+                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    label = { Text("Home") }
+                )
+                NavigationBarItem(
+                    selected = section == AppSection.HISTORY,
+                    onClick = { viewModel.setSection(AppSection.HISTORY) },
+                    icon = { Icon(Icons.Outlined.History, contentDescription = null) },
+                    label = { Text("History") }
+                )
+                NavigationBarItem(
+                    selected = section == AppSection.INSIGHTS,
+                    onClick = { viewModel.setSection(AppSection.INSIGHTS) },
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = null) },
+                    label = { Text("Insights") }
+                )
+            }
+        },
         floatingActionButton = {
-            if (selectedTab != MainTab.HISTORY) {
-                ExtendedFloatingActionButton(
+            if (section == AppSection.HOME) {
+                FloatingActionButton(
                     onClick = {
                         val preset = when (selectedTab) {
                             MainTab.MEDICATIONS -> ReminderCategory.MEDICATION
@@ -189,12 +239,10 @@ fun MainScreen(
                         }
                         viewModel.openCreateSheet(preset)
                     },
-                    icon = { Icon(Icons.Default.Add, contentDescription = "Add Reminder") },
-                    text = { Text("Add Reminder", fontWeight = FontWeight.Bold) },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.testTag("fab_add_reminder")
-                )
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Reminder")
+                }
             }
         }
     ) { innerPadding ->
@@ -203,264 +251,62 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (!canScheduleExactAlarms && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                Surface(
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Allow exact alarms so reminders fire on time",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 3
-                        )
-                        TextButton(
-                            onClick = {
-                                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                                runCatching { context.startActivity(intent) }
-                                canScheduleExactAlarms = AlarmScheduler.canScheduleExactAlarms(context)
+            if (needsAlertPermission) {
+                CompactPermissionBar(
+                    onEnable = {
+                        if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        if (!canScheduleExactAlarms && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            runCatching {
+                                context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
                             }
-                        ) {
-                            Text("Allow", fontWeight = FontWeight.Bold)
+                            canScheduleExactAlarms = AlarmScheduler.canScheduleExactAlarms(context)
                         }
-                    }
-                }
+                    },
+                    onDismiss = { hidePermissionBanner = true }
+                )
             }
 
-            if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                Icons.Default.NotificationsActive,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Enable notifications for timely medication & task alerts",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                maxLines = 3
-                            )
-                        }
-                        TextButton(
-                            onClick = {
-                                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                        ) {
-                            Text("Enable", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
-            // Top Header & Adherence Stats
-            HeaderAndStats(
-                stats = todayStats,
-                currentTimeMillis = currentTimeMillis,
-                weekly = weeklyAdherence,
-                onOpenSettings = { viewModel.openSettings() }
-            )
-
-            // Search Bar
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { viewModel.setSearchQuery(it) },
-                placeholder = { Text("Search meds, tasks, events...") },
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
-                trailingIcon = {
-                    if (searchQuery.isNotBlank()) {
-                        IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear search")
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .testTag("search_input"),
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surface
-                ),
-                singleLine = true
-            )
-
-            // Category Filter Tabs
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                MainTab.entries.forEach { tab ->
-                    val isSelected = selectedTab == tab
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.setSelectedTab(tab) },
-                        label = {
-                            Text(
-                                text = "${tab.emoji} ${tab.title}",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        modifier = Modifier.testTag("tab_${tab.name.lowercase()}")
-                    )
-                }
-            }
-
-            // Main Content Area
-            if (selectedTab == MainTab.HISTORY) {
-                HistoryLogTab(
+            when (section) {
+                AppSection.HOME -> HomePane(
+                    showSearch = showSearch,
+                    searchQuery = searchQuery,
+                    selectedTab = selectedTab,
+                    filteredReminders = filteredReminders,
+                    nextUpcomingReminder = nextUpcomingReminder,
+                    currentTimeMillis = currentTimeMillis,
+                    onSearch = { viewModel.setSearchQuery(it) },
+                    onSelectTab = { viewModel.setSelectedTab(it) },
+                    onTake = { viewModel.markDoneOrTaken(it) },
+                    onEdit = { viewModel.openEditSheet(it) },
+                    onDelete = { viewModel.deleteReminder(it) },
+                    onSnooze = { viewModel.snoozeReminder(it, 15) },
+                    onOpen = { viewModel.openDetail(it) }
+                )
+                AppSection.HISTORY -> HistoryLogTab(
                     logs = filteredLogs,
                     filters = historyFilters,
                     onFiltersChange = { viewModel.setHistoryFilters(it) },
                     onClearAll = { viewModel.clearAllLogs() },
                     onDeleteLog = { viewModel.deleteLog(it) }
                 )
-            } else {
-                LazyColumn(
+                AppSection.INSIGHTS -> Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
                 ) {
-                    // Hero Countdown Card for the next upcoming item (only if search is empty)
-                    if (searchQuery.isBlank() && selectedTab == MainTab.ALL) {
-                        item(key = "hero_countdown") {
-                            HeroCountdownCard(
-                                reminder = nextUpcomingReminder,
-                                currentTimeMillis = currentTimeMillis,
-                                onTakeOrDone = { viewModel.markDoneOrTaken(it) },
-                                onSnooze = { viewModel.snoozeReminder(it, 15) },
-                                onClick = { viewModel.openDetail(it) }
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                        }
-                    }
-
-                    // Section Title
-                    if (filteredReminders.isNotEmpty()) {
-                        item(key = "section_header") {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (searchQuery.isNotBlank()) "SEARCH RESULTS (${filteredReminders.size})"
-                                    else "${selectedTab.title.uppercase()} SCHEDULE",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    letterSpacing = 1.sp
-                                )
-                            }
-                        }
-                    }
-
-                    if (filteredReminders.isEmpty()) {
-                        item(key = "empty_state") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(40.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(64.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(text = "📋", fontSize = 28.sp)
-                                    }
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = if (searchQuery.isNotBlank()) "No matching reminders found"
-                                        else "No ${selectedTab.title.lowercase()} found",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Tap the + button below to create your schedule with custom notifications.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 20.dp),
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        items(filteredReminders, key = { it.id }) { item ->
-                            ReminderListItem(
-                                item = item,
-                                currentTimeMillis = currentTimeMillis,
-                                onTakeOrDone = { viewModel.markDoneOrTaken(it) },
-                                onEdit = { viewModel.openEditSheet(it) },
-                                onDelete = { viewModel.deleteReminder(it) },
-                                onSnooze = { viewModel.snoozeReminder(it, 15) },
-                                onClick = { viewModel.openDetail(it) }
-                            )
-                        }
-                    }
-
-                    item {
-                        Spacer(modifier = Modifier.height(88.dp))
-                    }
+                    HeaderAndStats(
+                        stats = todayStats,
+                        currentTimeMillis = currentTimeMillis,
+                        weekly = weeklyAdherence,
+                        showTitleBar = false
+                    )
                 }
             }
         }
     }
 
-    // Add / Edit Modal Bottom Sheet
     if (isSheetOpen) {
         AddEditReminderSheet(
             initialItem = sheetReminder,
@@ -468,8 +314,6 @@ fun MainScreen(
             onSave = { viewModel.saveReminder(it) }
         )
     }
-
-    // Detail & Full Countdown Modal Bottom Sheet
     if (showSettings) {
         SettingsSheet(
             preferences = viewModel.preferences,
@@ -478,7 +322,6 @@ fun MainScreen(
             onImport = { viewModel.importBackup(it, replaceExisting = false) }
         )
     }
-
     if (detailReminder != null) {
         ReminderDetailDialog(
             item = detailReminder,
@@ -493,5 +336,150 @@ fun MainScreen(
             },
             onDelete = { viewModel.deleteReminder(it) }
         )
+    }
+}
+
+@Composable
+private fun CompactPermissionBar(onEnable: () -> Unit, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "Turn on alerts so reminders fire on time",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.weight(1f),
+            maxLines = 2
+        )
+        TextButton(onClick = onEnable) { Text("Enable", fontWeight = FontWeight.Bold) }
+        TextButton(onClick = onDismiss) { Text("Later") }
+    }
+}
+
+@Composable
+private fun HomePane(
+    showSearch: Boolean,
+    searchQuery: String,
+    selectedTab: MainTab,
+    filteredReminders: List<com.medisafe.data.model.ReminderItem>,
+    nextUpcomingReminder: com.medisafe.data.model.ReminderItem?,
+    currentTimeMillis: Long,
+    onSearch: (String) -> Unit,
+    onSelectTab: (MainTab) -> Unit,
+    onTake: (com.medisafe.data.model.ReminderItem) -> Unit,
+    onEdit: (com.medisafe.data.model.ReminderItem) -> Unit,
+    onDelete: (com.medisafe.data.model.ReminderItem) -> Unit,
+    onSnooze: (com.medisafe.data.model.ReminderItem) -> Unit,
+    onOpen: (com.medisafe.data.model.ReminderItem) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (showSearch || searchQuery.isNotBlank()) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearch,
+                placeholder = { Text("Search reminders") },
+                trailingIcon = {
+                    if (searchQuery.isNotBlank()) {
+                        IconButton(onClick = { onSearch("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .testTag("search_input"),
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(MainTab.ALL, MainTab.MEDICATIONS, MainTab.TASKS, MainTab.EVENTS).forEach { tab ->
+                FilterChip(
+                    selected = selectedTab == tab,
+                    onClick = { onSelectTab(tab) },
+                    label = { Text("${tab.emoji} ${tab.title}") },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    modifier = Modifier.testTag("tab_${tab.name.lowercase()}")
+                )
+            }
+        }
+
+        if (searchQuery.isBlank() && selectedTab == MainTab.ALL) {
+            CompactNextUp(
+                reminder = nextUpcomingReminder,
+                currentTimeMillis = currentTimeMillis,
+                onTakeOrDone = onTake,
+                onClick = onOpen
+            )
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            if (filteredReminders.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) { Text("📋", fontSize = 28.sp) }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                if (searchQuery.isNotBlank()) "No matching reminders"
+                                else "Nothing scheduled",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Tap + to add a medication, task, or event.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(filteredReminders, key = { it.id }) { item ->
+                    ReminderListItem(
+                        item = item,
+                        currentTimeMillis = currentTimeMillis,
+                        onTakeOrDone = onTake,
+                        onEdit = onEdit,
+                        onDelete = onDelete,
+                        onSnooze = onSnooze,
+                        onClick = onOpen
+                    )
+                }
+            }
+            item { Spacer(modifier = Modifier.height(88.dp)) }
+        }
     }
 }

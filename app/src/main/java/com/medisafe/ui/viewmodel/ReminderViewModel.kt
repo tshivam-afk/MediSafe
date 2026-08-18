@@ -24,6 +24,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+enum class AppSection(val title: String) {
+    HOME("Home"),
+    HISTORY("History"),
+    INSIGHTS("Insights")
+}
+
 enum class MainTab(val title: String, val emoji: String) {
     ALL("All", "⚡"),
     MEDICATIONS("Meds", "💊"),
@@ -60,6 +66,9 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         application
     )
     val preferences = AppPreferences(application)
+
+    private val _section = MutableStateFlow(AppSection.HOME)
+    val section: StateFlow<AppSection> = _section.asStateFlow()
 
     private val _selectedTab = MutableStateFlow(MainTab.ALL)
     val selectedTab: StateFlow<MainTab> = _selectedTab.asStateFlow()
@@ -186,6 +195,13 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshNow() {
         _currentTimeMillis.value = System.currentTimeMillis()
+    }
+
+    fun setSection(section: AppSection) {
+        _section.value = section
+        if (section != AppSection.HOME) {
+            _searchQuery.value = ""
+        }
     }
 
     fun setSelectedTab(tab: MainTab) {
