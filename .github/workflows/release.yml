@@ -31,7 +31,6 @@ jobs:
       - name: Determine Next Version
         id: versioning
         run: |
-          # If manual version provided by user in dispatch input
           INPUT_VER="${{ github.event.inputs.version }}"
           INPUT_VER="${INPUT_VER#v}" # remove leading 'v' if present
           
@@ -39,7 +38,6 @@ jobs:
             VERSION="$INPUT_VER"
             echo "Using manual input version: $VERSION"
           else
-            # Find latest tag matching v* or semantic version
             LATEST_TAG=$(git tag -l "v*.*.*" --sort=-v:refname | head -n 1)
             if [ -z "$LATEST_TAG" ]; then
               LATEST_TAG=$(git tag -l "*.*.*" --sort=-v:refname | head -n 1)
@@ -52,17 +50,14 @@ jobs:
               echo "Found latest tag: $LATEST_TAG"
               CLEAN_TAG="${LATEST_TAG#v}"
               
-              # Extract Major.Minor.Patch
               MAJOR=$(echo "$CLEAN_TAG" | awk -F. '{print $1}')
               MINOR=$(echo "$CLEAN_TAG" | awk -F. '{print $2}')
               PATCH=$(echo "$CLEAN_TAG" | awk -F. '{print $3}')
               
-              # Fallback if parsing fails
               MAJOR=${MAJOR:-1}
               MINOR=${MINOR:-0}
               PATCH=${PATCH:-0}
               
-              # Auto-increment patch version
               NEW_PATCH=$((PATCH + 1))
               VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
               echo "Auto-incremented to version: $VERSION"
@@ -73,20 +68,21 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
 
       - name: Setup Android SDK Build-Tools & apksigner
         run: |
           ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          # Find latest build-tools directory containing apksigner
           BUILD_TOOLS_DIR=$(find "$ANDROID_SDK_ROOT/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
           echo "Using build-tools at: $BUILD_TOOLS_DIR"
           echo "$BUILD_TOOLS_DIR" >> "$GITHUB_PATH"
@@ -117,14 +113,13 @@ jobs:
             gradle assembleRelease --no-daemon --stacktrace
           fi
 
-      - name: Sign & Align APK with Keystore
+      - name: Sign & Verify APK with Keystore
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           VERSION: ${{ steps.versioning.outputs.version }}
         run: |
-          # Locate built APK
           FOUND_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
           if [ -z "$FOUND_APK" ]; then
             echo "Error: Release APK not found in app/build/outputs/apk/release"
@@ -134,7 +129,6 @@ jobs:
           
           FINAL_APK="MediSafe-v${VERSION}.apk"
           
-          # Check if APK is already signed or re-sign using apksigner with keystore_medisafe.p12
           if apksigner verify "$FOUND_APK" >/dev/null 2>&1; then
             echo "APK is already signed by Gradle."
             cp "$FOUND_APK" "$FINAL_APK"
@@ -149,11 +143,9 @@ jobs:
               "$FOUND_APK"
           fi
           
-          # Verify the final signed APK
           echo "Verifying signature of $FINAL_APK ..."
           apksigner verify --verbose "$FINAL_APK"
           
-          # Cleanup keystore file for security
           rm -f keystore_medisafe.p12
           
           echo "apk_path=$FINAL_APK" >> "$GITHUB_ENV"
