@@ -18,8 +18,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="NEXT REMINDER"
-            android:textColor="#94A3B8"
+            android:text="@string/widget_next_label"
+            android:textColor="@color/widget_label"
             android:textSize="11sp"
             android:textStyle="bold"
             android:letterSpacing="0.08" />
@@ -31,8 +31,8 @@
             android:background="@drawable/widget_badge_bg"
             android:paddingHorizontal="8dp"
             android:paddingVertical="3dp"
-            android:text="Upcoming"
-            android:textColor="#CCFBF1"
+            android:text="@string/widget_badge_upcoming"
+            android:textColor="@color/widget_badge_text"
             android:textSize="11sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -45,8 +45,8 @@
         android:layout_marginTop="6dp"
         android:ellipsize="end"
         android:maxLines="1"
-        android:text="No upcoming reminders"
-        android:textColor="#FFFFFF"
+        android:text="@string/widget_empty_title"
+        android:textColor="@color/widget_title"
         android:textSize="16sp"
         android:textStyle="bold" />
 
@@ -58,8 +58,8 @@
         android:layout_marginTop="2dp"
         android:ellipsize="end"
         android:maxLines="1"
-        android:text="Tap to add a new medication or task"
-        android:textColor="#CBD5E1"
+        android:text="@string/widget_empty_details"
+        android:textColor="@color/widget_details"
         android:textSize="12sp" />
 
     <!-- Time & Countdown Row -->
@@ -75,8 +75,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="All caught up!"
-            android:textColor="#2DD4BF"
+            android:text="@string/widget_empty_time"
+            android:textColor="@color/widget_accent"
             android:textSize="12sp"
             android:textStyle="bold" />
 

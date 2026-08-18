@@ -181,7 +181,8 @@ fun MainScreen(
                             text = "Allow exact alarms so reminders fire on time",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            maxLines = 3
                         )
                         TextButton(
                             onClick = {
@@ -225,7 +226,8 @@ fun MainScreen(
                             Text(
                                 text = "Enable notifications for timely medication & task alerts",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                maxLines = 3
                             )
                         }
                         TextButton(
@@ -314,7 +316,9 @@ fun MainScreen(
                 )
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
                 ) {
                     // Hero Countdown Card for the next upcoming item (only if search is empty)
                     if (searchQuery.isBlank() && selectedTab == MainTab.ALL) {

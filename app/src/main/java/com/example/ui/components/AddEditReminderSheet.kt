@@ -2,7 +2,7 @@ package com.example.ui.components
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,11 +13,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -86,10 +87,6 @@ fun AddEditReminderSheet(
     var vibrateEnabled by remember { mutableStateOf(initialItem.vibrate) }
     var titleError by remember { mutableStateOf(false) }
 
-    val cal = remember(scheduledTimeMillis) {
-        Calendar.getInstance().apply { timeInMillis = scheduledTimeMillis }
-    }
-
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -99,6 +96,8 @@ fun AddEditReminderSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .imePadding()
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp)
                 .verticalScroll(rememberScrollState())
@@ -113,7 +112,9 @@ fun AddEditReminderSheet(
                     text = if (initialItem.id == 0L) "New Reminder" else "Edit Reminder",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1
                 )
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Default.Close, contentDescription = "Close")
@@ -132,9 +133,10 @@ fun AddEditReminderSheet(
             )
             Spacer(modifier = Modifier.height(6.dp))
 
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ReminderCategory.entries.forEach { category ->
                     val isSelected = selectedCategory == category
@@ -369,7 +371,8 @@ fun AddEditReminderSheet(
                     Text(
                         text = DateTimeUtils.formatShortDate(scheduledTimeMillis),
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
                     )
                 }
 
@@ -408,7 +411,8 @@ fun AddEditReminderSheet(
                     Text(
                         text = DateTimeUtils.formatTime(scheduledTimeMillis),
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
                     )
                 }
             }
@@ -458,9 +462,10 @@ fun AddEditReminderSheet(
             )
             Spacer(modifier = Modifier.height(6.dp))
 
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Priority.entries.forEach { prio ->
                     val isSelected = priority == prio
@@ -473,13 +478,11 @@ fun AddEditReminderSheet(
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = if (isSelected) prioColor.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
-                        border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, prioColor) else null,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { priority = prio }
+                        border = if (isSelected) BorderStroke(1.dp, prioColor) else null,
+                        modifier = Modifier.clickable { priority = prio }
                     ) {
                         Box(
-                            modifier = Modifier.padding(vertical = 10.dp),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -507,7 +510,10 @@ fun AddEditReminderSheet(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Icon(
                                 Icons.Outlined.Notifications,
                                 contentDescription = null,
@@ -518,7 +524,8 @@ fun AddEditReminderSheet(
                             Text(
                                 text = "Notification Alert Sound",
                                 style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 2
                             )
                         }
                         Switch(
@@ -534,7 +541,10 @@ fun AddEditReminderSheet(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
                             Icon(
                                 Icons.Outlined.Vibration,
                                 contentDescription = null,
@@ -545,7 +555,8 @@ fun AddEditReminderSheet(
                             Text(
                                 text = "Vibrate on Alert",
                                 style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 2
                             )
                         }
                         Switch(

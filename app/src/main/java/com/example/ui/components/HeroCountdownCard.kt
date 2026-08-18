@@ -89,7 +89,7 @@ fun HeroCountdownCard(
                     Text(text = "✨", fontSize = 26.sp)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "You're All Caught Up!",
                         style = MaterialTheme.typography.titleMedium,
@@ -222,7 +222,8 @@ fun HeroCountdownCard(
                     text = reminder.title,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = Color.White,
+                    maxLines = 2
                 )
 
                 if (reminder.dosageOrDetails.isNotBlank()) {
@@ -230,7 +231,8 @@ fun HeroCountdownCard(
                     Text(
                         text = reminder.dosageOrDetails,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.9f)
+                        color = Color.White.copy(alpha = 0.9f),
+                        maxLines = 2
                     )
                 }
 
@@ -249,7 +251,7 @@ fun HeroCountdownCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                             Text(
                                 text = "SCHEDULED TIME",
                                 style = MaterialTheme.typography.labelSmall,
@@ -260,11 +262,11 @@ fun HeroCountdownCard(
                                 text = DateTimeUtils.getRelativeTimeLabel(reminder.effectiveTriggerTimeMillis),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 2
                             )
                         }
 
-                        // Countdown Display Unit
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 text = "REMAINING",
@@ -311,7 +313,8 @@ fun HeroCountdownCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = actionLabel,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
                     }
 

@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.viewmodel.TodayAdherenceStats
 import com.example.util.DateTimeUtils
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HeaderAndStats(
     stats: TodayAdherenceStats,
@@ -53,7 +56,7 @@ fun HeaderAndStats(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "💊",
@@ -120,7 +123,7 @@ fun HeaderAndStats(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                         Text(
                             text = "TODAY'S SCHEDULE",
                             style = MaterialTheme.typography.labelSmall,
@@ -172,10 +175,10 @@ fun HeaderAndStats(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Mini summary indicators
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(

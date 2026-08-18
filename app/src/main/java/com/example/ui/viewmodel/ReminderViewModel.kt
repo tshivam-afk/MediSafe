@@ -101,7 +101,7 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         allReminders,
         allLogs,
         _currentTimeMillis
-    ) { reminders, logs, now ->
+    ) { reminders, logs, _ ->
         val completedIds = logs
             .filter {
                 DateTimeUtils.isToday(it.timestampMillis) &&

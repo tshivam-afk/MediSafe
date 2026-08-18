@@ -4,10 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -41,7 +44,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -54,7 +56,7 @@ import com.example.data.model.ReminderCategory
 import com.example.data.model.ReminderItem
 import com.example.util.DateTimeUtils
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ReminderDetailDialog(
     item: ReminderItem?,
@@ -89,6 +91,7 @@ fun ReminderDetailDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp)
                 .verticalScroll(rememberScrollState()),
@@ -102,7 +105,8 @@ fun ReminderDetailDialog(
             ) {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = categoryColor.copy(alpha = 0.15f)
+                    color = categoryColor.copy(alpha = 0.15f),
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -135,13 +139,14 @@ fun ReminderDetailDialog(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Title
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center
-            )
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        maxLines = 3
+                    )
 
             if (item.dosageOrDetails.isNotBlank()) {
                 Spacer(modifier = Modifier.height(6.dp))
@@ -168,8 +173,11 @@ fun ReminderDetailDialog(
                 contentAlignment = Alignment.Center
             ) {
                 if (!item.isCompleted) {
+                    val windowMs = 24L * 60L * 60L * 1000L
+                    val remaining = (item.effectiveTriggerTimeMillis - currentTimeMillis).coerceAtLeast(0L)
+                    val ringProgress = if (isDue) 1f else (1f - (remaining.toFloat() / windowMs)).coerceIn(0.05f, 1f)
                     CircularProgressIndicator(
-                        progress = { 1f },
+                        progress = { ringProgress },
                         modifier = Modifier.size(160.dp),
                         color = if (isDue) Color(0xFFE11D48) else categoryColor,
                         strokeWidth = 6.dp,
@@ -228,7 +236,10 @@ fun ReminderDetailDialog(
                             text = DateTimeUtils.getRelativeTimeLabel(item.effectiveTriggerTimeMillis),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(start = 12.dp),
+                            textAlign = TextAlign.End,
+                            maxLines = 2
                         )
                     }
 
@@ -363,7 +374,11 @@ fun ReminderDetailDialog(
                 ) {
                     Icon(Icons.Outlined.SkipNext, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Skip this scheduled occurrence", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "Skip this scheduled occurrence",
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1
+                    )
                 }
             }
         }
