@@ -52,14 +52,12 @@ object DateTimeUtils {
     }
 
     /**
-     * Formats remaining time into a readable countdown string:
-     * e.g., "02h 15m 30s", "45m 12s", "03s", "Due now!"
+     * Formats remaining time without seconds so the UI can tick once a minute.
      */
     data class CountdownComponents(
         val days: Long,
         val hours: Long,
         val minutes: Long,
-        val seconds: Long,
         val isDue: Boolean,
         val formattedString: String
     )
@@ -67,19 +65,17 @@ object DateTimeUtils {
     fun getCountdown(targetTimeMillis: Long, currentTimeMillis: Long = System.currentTimeMillis()): CountdownComponents {
         val diff = targetTimeMillis - currentTimeMillis
         if (diff <= 0) {
-            val overdueSeconds = TimeUnit.MILLISECONDS.toSeconds(-diff)
             val overdueMinutes = TimeUnit.MILLISECONDS.toMinutes(-diff)
             val overdueHours = TimeUnit.MILLISECONDS.toHours(-diff)
             val formatted = when {
                 overdueHours > 0 -> "Due ${overdueHours}h ago"
                 overdueMinutes > 0 -> "Due ${overdueMinutes}m ago"
-                else -> "Due right now"
+                else -> "Due now"
             }
             return CountdownComponents(
                 days = 0,
                 hours = 0,
                 minutes = 0,
-                seconds = 0,
                 isDue = true,
                 formattedString = formatted
             )
@@ -88,24 +84,17 @@ object DateTimeUtils {
         val days = TimeUnit.MILLISECONDS.toDays(diff)
         val hours = TimeUnit.MILLISECONDS.toHours(diff) % 24
         val minutes = TimeUnit.MILLISECONDS.toMinutes(diff) % 60
-        val seconds = TimeUnit.MILLISECONDS.toSeconds(diff) % 60
 
         val formatted = buildString {
-            if (days > 0) {
-                append("${days}d ")
-            }
-            if (days > 0 || hours > 0) {
-                append(String.format(Locale.US, "%02dh ", hours))
-            }
-            append(String.format(Locale.US, "%02dm ", minutes))
-            append(String.format(Locale.US, "%02ds", seconds))
+            if (days > 0) append("${days}d ")
+            if (days > 0 || hours > 0) append(String.format(Locale.US, "%02dh ", hours))
+            append(String.format(Locale.US, "%02dm", minutes))
         }.trim()
 
         return CountdownComponents(
             days = days,
             hours = hours,
             minutes = minutes,
-            seconds = seconds,
             isDue = false,
             formattedString = formatted
         )

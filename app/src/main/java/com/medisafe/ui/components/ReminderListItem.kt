@@ -1,7 +1,9 @@
 package com.medisafe.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,7 +56,7 @@ import com.medisafe.data.model.ReminderCategory
 import com.medisafe.data.model.ReminderItem
 import com.medisafe.util.DateTimeUtils
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ReminderListItem(
     item: ReminderItem,
@@ -64,6 +66,9 @@ fun ReminderListItem(
     onDelete: (ReminderItem) -> Unit,
     onSnooze: (ReminderItem) -> Unit,
     onClick: (ReminderItem) -> Unit,
+    onLongClick: (ReminderItem) -> Unit = {},
+    selected: Boolean = false,
+    selectionMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -112,11 +117,13 @@ fun ReminderListItem(
                         if (item.isCompleted) Color(0xFF10B981)
                         else categoryColor.copy(alpha = 0.12f)
                     )
-                    .clickable { onTakeOrDone(item) }
+                    .clickable {
+                        if (selectionMode) onLongClick(item) else onTakeOrDone(item)
+                    }
                     .testTag("checkbox_toggle_${item.id}"),
                 contentAlignment = Alignment.Center
             ) {
-                if (item.isCompleted) {
+                if (selected || item.isCompleted) {
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Completed",
@@ -241,8 +248,7 @@ fun ReminderListItem(
                 }
             }
 
-            // Overflow Menu
-            Box {
+            if (!selectionMode) Box {
                 IconButton(
                     onClick = { menuExpanded = true },
                     modifier = Modifier.testTag("menu_button_${item.id}")

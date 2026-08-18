@@ -15,7 +15,7 @@ class DateTimeUtilsTest {
         val now = 1_700_000_000_000L
         val countdown = DateTimeUtils.getCountdown(now - 5_000L, now)
         assertTrue(countdown.isDue)
-        assertEquals("Due right now", countdown.formattedString)
+        assertEquals("Due now", countdown.formattedString)
     }
 
     @Test

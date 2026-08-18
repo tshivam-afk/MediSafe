@@ -55,8 +55,14 @@ data class HistoryFilters(
 )
 
 sealed class UndoAction {
-    data class Deleted(val item: ReminderItem, val logs: List<ReminderLog>) : UndoAction()
+    data class Deleted(val items: List<Pair<ReminderItem, List<ReminderLog>>>) : UndoAction()
     data class Changed(val previous: ReminderItem, val label: String) : UndoAction()
+}
+
+sealed class ConfirmRequest {
+    data class Delete(val items: List<ReminderItem>) : ConfirmRequest()
+    data class Take(val item: ReminderItem) : ConfirmRequest()
+    data class UndoLog(val log: ReminderLog) : ConfirmRequest()
 }
 
 class ReminderViewModel(application: Application) : AndroidViewModel(application) {
@@ -105,6 +111,14 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
 
     private val _isLocked = MutableStateFlow(preferences.hasPin)
     val isLocked: StateFlow<Boolean> = _isLocked.asStateFlow()
+
+    private val _selectedIds = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedIds: StateFlow<Set<Long>> = _selectedIds.asStateFlow()
+
+    private val _confirmRequest = MutableStateFlow<ConfirmRequest?>(null)
+    val confirmRequest: StateFlow<ConfirmRequest?> = _confirmRequest.asStateFlow()
+
+    private var takeInFlight = false
 
     val allReminders: StateFlow<List<ReminderItem>> = repository.allReminders
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -201,7 +215,50 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         _section.value = section
         if (section != AppSection.HOME) {
             _searchQuery.value = ""
+            clearSelection()
         }
+    }
+
+    fun startOrToggleSelection(item: ReminderItem) {
+        val current = _selectedIds.value
+        _selectedIds.value = if (current.contains(item.id)) current - item.id else current + item.id
+    }
+
+    fun clearSelection() {
+        _selectedIds.value = emptySet()
+    }
+
+    fun requestDelete(item: ReminderItem) {
+        _confirmRequest.value = ConfirmRequest.Delete(listOf(item))
+    }
+
+    fun requestDeleteSelected() {
+        val items = allReminders.value.filter { it.id in _selectedIds.value }
+        if (items.isNotEmpty()) {
+            _confirmRequest.value = ConfirmRequest.Delete(items)
+        }
+    }
+
+    fun requestTake(item: ReminderItem) {
+        _confirmRequest.value = ConfirmRequest.Take(item)
+    }
+
+    fun requestUndoLog(log: ReminderLog) {
+        _confirmRequest.value = ConfirmRequest.UndoLog(log)
+    }
+
+    fun dismissConfirm() {
+        _confirmRequest.value = null
+    }
+
+    fun confirmPending() {
+        when (val request = _confirmRequest.value) {
+            is ConfirmRequest.Delete -> deleteReminders(request.items)
+            is ConfirmRequest.Take -> markDoneOrTaken(request.item)
+            is ConfirmRequest.UndoLog -> undoHistoryLog(request.log)
+            null -> Unit
+        }
+        _confirmRequest.value = null
     }
 
     fun setSelectedTab(tab: MainTab) {
@@ -321,31 +378,41 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun deleteReminder(item: ReminderItem) {
+        requestDelete(item)
+    }
+
+    private fun deleteReminders(items: List<ReminderItem>) {
         viewModelScope.launch {
-            runCatching { repository.deleteReminder(item) }
-                .onSuccess { logs ->
-                    if (_detailReminder.value?.id == item.id) _detailReminder.value = null
+            runCatching { repository.deleteReminders(items) }
+                .onSuccess { removed ->
+                    if (items.any { it.id == _detailReminder.value?.id }) _detailReminder.value = null
                     closeSheet()
-                    _undoAction.value = UndoAction.Deleted(item, logs)
-                    _userMessage.value = "Reminder deleted"
+                    clearSelection()
+                    _undoAction.value = UndoAction.Deleted(removed)
+                    _userMessage.value = if (removed.size == 1) "Reminder deleted" else "${removed.size} reminders deleted"
                 }
                 .onFailure { _userMessage.value = "Couldn't delete reminder." }
         }
     }
 
     fun markDoneOrTaken(item: ReminderItem) {
+        if (takeInFlight) return
+        takeInFlight = true
         viewModelScope.launch {
             runCatching { repository.markDoneOrTaken(item) }
                 .onSuccess { updated ->
                     if (_detailReminder.value?.id == item.id) _detailReminder.value = updated
-                    _undoAction.value = UndoAction.Changed(item, "Marked done")
-                    _userMessage.value = if (updated.needsRefill) {
-                        "Logged. Only ${updated.pillsRemaining} left — refill soon."
-                    } else {
-                        "Marked done"
+                    if (updated.lastAcknowledgedMillis != item.lastAcknowledgedMillis) {
+                        _undoAction.value = UndoAction.Changed(item, "Marked done")
+                        _userMessage.value = if (updated.needsRefill) {
+                            "Logged. Only ${updated.pillsRemaining} left — refill soon."
+                        } else {
+                            "Marked done"
+                        }
                     }
                 }
                 .onFailure { _userMessage.value = "Couldn't update reminder." }
+            takeInFlight = false
         }
     }
 
@@ -378,7 +445,9 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             runCatching {
                 when (action) {
-                    is UndoAction.Deleted -> repository.restoreDeleted(action.item, action.logs)
+                    is UndoAction.Deleted -> action.items.forEach { (item, logs) ->
+                        repository.restoreDeleted(item, logs)
+                    }
                     is UndoAction.Changed -> repository.restorePreviousState(action.previous)
                 }
             }.onSuccess {
@@ -421,6 +490,14 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             runCatching { repository.deleteLogById(logId) }
                 .onFailure { _userMessage.value = "Couldn't delete history item." }
+        }
+    }
+
+    fun undoHistoryLog(log: ReminderLog) {
+        viewModelScope.launch {
+            runCatching { repository.undoHistoryLog(log) }
+                .onSuccess { _userMessage.value = "History entry undone" }
+                .onFailure { _userMessage.value = "Couldn't undo that log." }
         }
     }
 }

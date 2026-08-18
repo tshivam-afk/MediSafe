@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Snooze
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Undo
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -60,6 +61,7 @@ fun HistoryLogTab(
     onFiltersChange: (HistoryFilters) -> Unit,
     onClearAll: () -> Unit,
     onDeleteLog: (Long) -> Unit,
+    onUndoLog: (ReminderLog) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -184,6 +186,11 @@ fun HistoryLogTab(
                                         Text(actionLabel, color = actionColor, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                                     }
                                     Text(DateTimeUtils.formatDateTime(log.timestampMillis), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            if (log.actionEnum == LogAction.TAKEN || log.actionEnum == LogAction.COMPLETED) {
+                                IconButton(onClick = { onUndoLog(log) }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Outlined.Undo, contentDescription = "Undo log", modifier = Modifier.size(16.dp))
                                 }
                             }
                             IconButton(onClick = { onDeleteLog(log.id) }, modifier = Modifier.size(28.dp)) {

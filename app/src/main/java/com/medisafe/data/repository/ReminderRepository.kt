@@ -69,9 +69,13 @@ class ReminderRepository(
     }
 
     suspend fun markDoneOrTaken(reminder: ReminderItem): ReminderItem {
+        val now = System.currentTimeMillis()
+        val lastAck = reminder.lastAcknowledgedMillis
+        if (lastAck != null && now - lastAck < ACK_DEBOUNCE_MS) {
+            return reminder
+        }
         val isMed = reminder.categoryEnum == ReminderCategory.MEDICATION
         val action = if (isMed) LogAction.TAKEN else LogAction.COMPLETED
-        val now = System.currentTimeMillis()
 
         reminderDao.insertLog(
             ReminderLog(
@@ -269,6 +273,19 @@ class ReminderRepository(
 
     suspend fun deleteLogById(logId: Long) {
         reminderDao.deleteLogById(logId)
+    }
+
+    suspend fun undoHistoryLog(log: ReminderLog) {
+        reminderDao.deleteLogById(log.id)
+        val reminder = reminderDao.getReminderById(log.reminderId) ?: return
+        if (log.actionEnum == LogAction.TAKEN && reminder.pillsRemaining != null) {
+            reminderDao.updateReminder(reminder.copy(pillsRemaining = reminder.pillsRemaining + 1))
+        }
+        ReminderAppWidgetProvider.updateAllWidgets(appContext)
+    }
+
+    suspend fun deleteReminders(reminders: List<ReminderItem>): List<Pair<ReminderItem, List<ReminderLog>>> {
+        return reminders.map { item -> item to deleteReminder(item) }
     }
 
     private fun nextOccurrence(reminder: ReminderItem, fromTimeMillis: Long): Long {

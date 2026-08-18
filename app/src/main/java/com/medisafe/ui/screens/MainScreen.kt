@@ -28,6 +28,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Search
@@ -75,6 +77,7 @@ import com.medisafe.data.model.ReminderCategory
 import com.medisafe.notifications.AlarmScheduler
 import com.medisafe.ui.components.AddEditReminderSheet
 import com.medisafe.ui.components.CompactNextUp
+import com.medisafe.ui.components.ConfirmRequestDialog
 import com.medisafe.ui.components.HeaderAndStats
 import com.medisafe.ui.components.HistoryLogTab
 import com.medisafe.ui.components.ReminderDetailDialog
@@ -109,6 +112,8 @@ fun MainScreen(
     val historyFilters by viewModel.historyFilters.collectAsStateWithLifecycle()
     val showSettings by viewModel.showSettings.collectAsStateWithLifecycle()
     val undoAction by viewModel.undoAction.collectAsStateWithLifecycle()
+    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
+    val confirmRequest by viewModel.confirmRequest.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
     var showSearch by remember { mutableStateOf(false) }
@@ -127,9 +132,8 @@ fun MainScreen(
                 val interval = when {
                     section != AppSection.HOME && detailReminder == null -> 30_000L
                     remaining == null -> 30_000L
-                    remaining <= 2 * 60_000L -> 1_000L
-                    remaining <= 15 * 60_000L -> 5_000L
-                    else -> 15_000L
+                    remaining <= 15 * 60_000L -> 15_000L
+                    else -> 30_000L
                 }
                 delay(interval)
             }
@@ -182,25 +186,39 @@ fun MainScreen(
             TopAppBar(
                 title = {
                     Text(
-                        when (section) {
-                            AppSection.HOME -> "MediSafe"
-                            AppSection.HISTORY -> "History"
-                            AppSection.INSIGHTS -> "Insights"
+                        when {
+                            selectedIds.isNotEmpty() -> "${selectedIds.size} selected"
+                            section == AppSection.HOME -> "MediSafe"
+                            section == AppSection.HISTORY -> "History"
+                            else -> "Insights"
                         },
                         fontWeight = FontWeight.Bold
                     )
                 },
-                actions = {
-                    if (section == AppSection.HOME) {
-                        IconButton(
-                            onClick = { showSearch = !showSearch },
-                            modifier = Modifier.testTag("search_toggle")
-                        ) {
-                            Icon(Icons.Default.Search, contentDescription = "Search")
+                navigationIcon = {
+                    if (selectedIds.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.clearSelection() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear selection")
                         }
                     }
-                    IconButton(onClick = { viewModel.openSettings() }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                },
+                actions = {
+                    if (selectedIds.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.requestDeleteSelected() }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete selected")
+                        }
+                    } else {
+                        if (section == AppSection.HOME) {
+                            IconButton(
+                                onClick = { showSearch = !showSearch },
+                                modifier = Modifier.testTag("search_toggle")
+                            ) {
+                                Icon(Icons.Default.Search, contentDescription = "Search")
+                            }
+                        }
+                        IconButton(onClick = { viewModel.openSettings() }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
                     }
                 }
             )
@@ -228,7 +246,7 @@ fun MainScreen(
             }
         },
         floatingActionButton = {
-            if (section == AppSection.HOME) {
+            if (section == AppSection.HOME && selectedIds.isEmpty()) {
                 FloatingActionButton(
                     onClick = {
                         val preset = when (selectedTab) {
@@ -278,18 +296,21 @@ fun MainScreen(
                     currentTimeMillis = currentTimeMillis,
                     onSearch = { viewModel.setSearchQuery(it) },
                     onSelectTab = { viewModel.setSelectedTab(it) },
-                    onTake = { viewModel.markDoneOrTaken(it) },
+                    onTake = { viewModel.requestTake(it) },
                     onEdit = { viewModel.openEditSheet(it) },
-                    onDelete = { viewModel.deleteReminder(it) },
+                    onDelete = { viewModel.requestDelete(it) },
                     onSnooze = { viewModel.snoozeReminder(it, 15) },
-                    onOpen = { viewModel.openDetail(it) }
+                    onOpen = { viewModel.openDetail(it) },
+                    selectedIds = selectedIds,
+                    onToggleSelect = { viewModel.startOrToggleSelection(it) }
                 )
                 AppSection.HISTORY -> HistoryLogTab(
                     logs = filteredLogs,
                     filters = historyFilters,
                     onFiltersChange = { viewModel.setHistoryFilters(it) },
                     onClearAll = { viewModel.clearAllLogs() },
-                    onDeleteLog = { viewModel.deleteLog(it) }
+                    onDeleteLog = { viewModel.deleteLog(it) },
+                    onUndoLog = { viewModel.requestUndoLog(it) }
                 )
                 AppSection.INSIGHTS -> Column(
                     modifier = Modifier
@@ -305,6 +326,14 @@ fun MainScreen(
                 }
             }
         }
+    }
+
+    confirmRequest?.let { request ->
+        ConfirmRequestDialog(
+            request = request,
+            onConfirm = { viewModel.confirmPending() },
+            onDismiss = { viewModel.dismissConfirm() }
+        )
     }
 
     if (isSheetOpen) {
@@ -327,14 +356,14 @@ fun MainScreen(
             item = detailReminder,
             currentTimeMillis = currentTimeMillis,
             onDismiss = { viewModel.closeDetail() },
-            onTakeOrDone = { viewModel.markDoneOrTaken(it) },
+            onTakeOrDone = { viewModel.requestTake(it) },
             onSnooze = { item, mins -> viewModel.snoozeReminder(item, mins) },
             onSkip = { viewModel.skipReminder(it) },
             onEdit = {
                 viewModel.closeDetail()
                 viewModel.openEditSheet(it)
             },
-            onDelete = { viewModel.deleteReminder(it) }
+            onDelete = { viewModel.requestDelete(it) }
         )
     }
 }
@@ -376,7 +405,9 @@ private fun HomePane(
     onEdit: (com.medisafe.data.model.ReminderItem) -> Unit,
     onDelete: (com.medisafe.data.model.ReminderItem) -> Unit,
     onSnooze: (com.medisafe.data.model.ReminderItem) -> Unit,
-    onOpen: (com.medisafe.data.model.ReminderItem) -> Unit
+    onOpen: (com.medisafe.data.model.ReminderItem) -> Unit,
+    selectedIds: Set<Long>,
+    onToggleSelect: (com.medisafe.data.model.ReminderItem) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         if (showSearch || searchQuery.isNotBlank()) {
@@ -475,7 +506,10 @@ private fun HomePane(
                         onEdit = onEdit,
                         onDelete = onDelete,
                         onSnooze = onSnooze,
-                        onClick = onOpen
+                        onClick = onOpen,
+                        onLongClick = onToggleSelect,
+                        selected = item.id in selectedIds,
+                        selectionMode = selectedIds.isNotEmpty()
                     )
                 }
             }
