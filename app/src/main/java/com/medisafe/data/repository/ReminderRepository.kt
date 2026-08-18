@@ -328,4 +328,8 @@ class ReminderRepository(
             NotificationHelper.showRefillNotification(appContext, reminder)
         }
     }
+
+    companion object {
+        const val ACK_DEBOUNCE_MS = 90_000L
+    }
 }
