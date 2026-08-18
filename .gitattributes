@@ -1,0 +1,5 @@
+# Keep Gradle Wrapper and other binaries from being UTF-8 mangled on checkout.
+*.jar binary
+*.apk binary
+*.so binary
+*.webp binary
