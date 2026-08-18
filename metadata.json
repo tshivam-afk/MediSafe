@@ -1,0 +1,6 @@
+{
+  "name": "Med & Task Reminder",
+  "description": "Smart reminder and schedule tracker for medications, daily tasks, and upcoming events with custom notifications, countdown timers, and home screen widgets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.65"
+        android:scaleY="0.65"
+        android:translateX="18.9"
+        android:translateY="18.9">
+        <!-- Circular container badge shadow & glow -->
+        <path
+            android:fillColor="#26FFFFFF"
+            android:pathData="M54,54m-48,0a48,48 0,1 1,96 0a48,48 0,1 1,-96 0" />
+        
+        <!-- Pill Capsule (Diagonal angled pill) -->
+        <!-- Pill Upper Half (Teal / Cyan) -->
+        <path
+            android:fillColor="#00E5FF"
+            android:pathData="M32,46 C25,39 25,27 32,20 C39,13 51,13 58,20 L66,28 L40,54 Z" />
+        <!-- Pill Lower Half (White) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M40,54 L66,28 L74,36 C81,43 81,55 74,62 C67,69 55,69 48,62 Z" />
+        <!-- Pill Middle divider band -->
+        <path
+            android:fillColor="#00B0FF"
+            android:pathData="M39,53 L65,27 L67,29 L41,55 Z" />
+
+        <!-- Checkmark Badge on bottom right -->
+        <path
+            android:fillColor="#FFD166"
+            android:pathData="M68,68m-20,0a20,20 0,1 1,40 0a20,20 0,1 1,-40 0" />
+        <!-- Checkmark check symbol -->
+        <path
+            android:fillColor="#1E293B"
+            android:pathData="M59,68 L65,74 L77,61 L74,58 L65,68 L62,65 Z" />
+
+        <!-- Small clock hand reminder indicator at top right -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M80,24m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" />
+        <path
+            android:fillColor="#0F4C81"
+            android:pathData="M79,16h2v9h-2z" />
+        <path
+            android:fillColor="#0F4C81"
+            android:pathData="M79,23h6v2h-6z" />
+    </group>
+</vector>
