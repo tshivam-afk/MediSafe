@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.medisafe.data.model.ReminderCategory
+import com.medisafe.notifications.AlarmScheduler
 import com.medisafe.notifications.ReminderAlarmReceiver
 import com.medisafe.ui.screens.LockScreen
 import com.medisafe.ui.screens.MainScreen
@@ -26,6 +27,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        AlarmScheduler.rescheduleAllActive(this)
         handleIncomingIntent(intent)
 
         setContent {

@@ -110,12 +110,21 @@ fun MainScreen(
         mutableStateOf(AlarmScheduler.canScheduleExactAlarms(context))
     }
 
-    LaunchedEffect(lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+    LaunchedEffect(lifecycleOwner, selectedTab, nextUpcomingReminder?.effectiveTriggerTimeMillis, detailReminder?.id) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             canScheduleExactAlarms = AlarmScheduler.canScheduleExactAlarms(context)
             while (isActive) {
                 viewModel.refreshNow()
-                delay(1000)
+                val remaining = nextUpcomingReminder?.effectiveTriggerTimeMillis
+                    ?.minus(System.currentTimeMillis())
+                val interval = when {
+                    selectedTab == MainTab.HISTORY && detailReminder == null -> 30_000L
+                    remaining == null -> 30_000L
+                    remaining <= 2 * 60_000L -> 1_000L
+                    remaining <= 15 * 60_000L -> 5_000L
+                    else -> 15_000L
+                }
+                delay(interval)
             }
         }
     }

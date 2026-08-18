@@ -141,7 +141,6 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             AlarmScheduler.scheduleReminderAlarm(context, dbItem)
         }
         ReminderAppWidgetProvider.updateAllWidgets(context)
-        AlarmScheduler.scheduleWidgetRefresh(context)
     }
 
     private suspend fun handleMarkDone(context: Context, reminderId: Long) {
@@ -174,7 +173,6 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
 
     private fun handleWidgetRefresh(context: Context) {
         ReminderAppWidgetProvider.updateAllWidgets(context)
-        AlarmScheduler.scheduleWidgetRefresh(context)
     }
 
     private fun repository(context: Context): ReminderRepository {

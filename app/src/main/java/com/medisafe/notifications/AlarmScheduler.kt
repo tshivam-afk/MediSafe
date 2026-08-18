@@ -74,7 +74,6 @@ object AlarmScheduler {
 
         setWakeup(context, triggerTime, triggerPendingIntent(context, reminder))
         Log.d(TAG, "Scheduled alarm for '${reminder.title}' at $triggerTime")
-        scheduleWidgetRefresh(context, minOf(triggerTime, now + 60_000L))
     }
 
     fun cancelReminderAlarm(context: Context, reminderId: Long) {
@@ -103,10 +102,14 @@ object AlarmScheduler {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        setWakeup(context, trigger, pending)
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        runCatching {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC, trigger, pending)
+        }
     }
 
-    fun scheduleWidgetRefresh(context: Context, atMillis: Long = System.currentTimeMillis() + 60_000L) {
+    fun cancelWidgetRefresh(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val intent = Intent(context, ReminderAlarmReceiver::class.java).apply {
             action = ACTION_WIDGET_REFRESH
         }
@@ -116,7 +119,8 @@ object AlarmScheduler {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        setWakeup(context, atMillis.coerceAtLeast(System.currentTimeMillis() + 15_000L), pending)
+        alarmManager.cancel(pending)
+        pending.cancel()
     }
 
     fun rescheduleAllActive(context: Context) {
@@ -128,7 +132,7 @@ object AlarmScheduler {
             }
             scheduleDailyRecap(appContext)
             ReminderAppWidgetProvider.updateAllWidgets(appContext)
-            scheduleWidgetRefresh(appContext)
+            cancelWidgetRefresh(appContext)
         }
     }
 

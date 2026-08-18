@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -123,7 +124,7 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val nextUpcomingReminder: StateFlow<ReminderItem?> = allReminders
-        .combine(_currentTimeMillis) { reminders, _ ->
+        .map { reminders ->
             reminders
                 .filter { it.isActive && !it.isCompleted }
                 .minByOrNull { it.effectiveTriggerTimeMillis }
@@ -132,9 +133,8 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
 
     val todayStats: StateFlow<TodayAdherenceStats> = combine(
         allReminders,
-        allLogs,
-        _currentTimeMillis
-    ) { reminders, logs, _ ->
+        allLogs
+    ) { reminders, logs ->
         val todayLogs = logs.filter { DateTimeUtils.isToday(it.timestampMillis) }
         val completedIds = todayLogs
             .filter { it.actionEnum == LogAction.TAKEN || it.actionEnum == LogAction.COMPLETED }
@@ -161,9 +161,9 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayAdherenceStats())
 
-    val weeklyAdherence: StateFlow<List<DayAdherence>> = combine(allLogs, _currentTimeMillis) { logs, now ->
-        repository.weeklyAdherence(logs, now)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val weeklyAdherence: StateFlow<List<DayAdherence>> = allLogs
+        .map { logs -> repository.weeklyAdherence(logs) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredLogs: StateFlow<List<ReminderLog>> = combine(allLogs, _historyFilters) { logs, filters ->
         logs.filter { log ->

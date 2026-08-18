@@ -34,7 +34,11 @@ class ReminderAppWidgetProvider : AppWidgetProvider() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         updateAllWidgets(context)
-        com.medisafe.notifications.AlarmScheduler.scheduleWidgetRefresh(context)
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        com.medisafe.notifications.AlarmScheduler.cancelWidgetRefresh(context)
     }
 
     companion object {
