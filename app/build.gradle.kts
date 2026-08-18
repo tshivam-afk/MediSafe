@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-  namespace = "com.example"
+  namespace = "com.medisafe"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
@@ -87,6 +87,8 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
+  implementation(libs.androidx.biometric)
+  implementation(libs.androidx.fragment.ktx)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
