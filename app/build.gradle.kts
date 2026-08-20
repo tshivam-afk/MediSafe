@@ -4,16 +4,27 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
 }
 
+fun semverCode(version: String): Int {
+  val parts = version.removePrefix("v").split('.', '-', '_')
+  val major = parts.getOrNull(0)?.toIntOrNull() ?: 1
+  val minor = parts.getOrNull(1)?.toIntOrNull() ?: 0
+  val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
+  return major * 10_000 + minor * 100 + patch
+}
+
 android {
   namespace = "com.medisafe"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
-  defaultConfig {
+    defaultConfig {
     applicationId = "com.medisafe.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0.0"
+    val appVersion = System.getenv("APP_VERSION")?.removePrefix("v")?.takeIf { it.isNotBlank() } ?: "1.0.4"
+    versionName = appVersion
+    versionCode = semverCode(appVersion)
+    buildConfigField("String", "GITHUB_OWNER", "\"tshivam-afk\"")
+    buildConfigField("String", "GITHUB_REPO", "\"MediSafe\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

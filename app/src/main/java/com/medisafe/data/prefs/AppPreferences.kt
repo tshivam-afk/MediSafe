@@ -17,6 +17,12 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_BIOMETRIC, false)
         set(value) = prefs.edit().putBoolean(KEY_BIOMETRIC, value).apply()
 
+    var installedReleaseTag: String?
+        get() = prefs.getString(KEY_INSTALLED_RELEASE, null)
+        set(value) {
+            prefs.edit().putString(KEY_INSTALLED_RELEASE, value).apply()
+        }
+
     val hasPin: Boolean
         get() = !prefs.getString(KEY_PIN_HASH, null).isNullOrBlank()
 
@@ -48,6 +54,7 @@ class AppPreferences(context: Context) {
         private const val KEY_BIOMETRIC = "biometric_enabled"
         private const val KEY_PIN_HASH = "pin_hash"
         private const val KEY_PIN_SALT = "pin_salt"
+        private const val KEY_INSTALLED_RELEASE = "installed_release_tag"
 
         private fun hashPin(pin: String, salt: ByteArray): String {
             val digest = MessageDigest.getInstance("SHA-256")

@@ -83,9 +83,12 @@ import com.medisafe.ui.components.HistoryLogTab
 import com.medisafe.ui.components.ReminderDetailDialog
 import com.medisafe.ui.components.ReminderListItem
 import com.medisafe.ui.components.SettingsSheet
+import com.medisafe.ui.components.UpdateDialog
 import com.medisafe.ui.viewmodel.AppSection
 import com.medisafe.ui.viewmodel.MainTab
 import com.medisafe.ui.viewmodel.ReminderViewModel
+import com.medisafe.update.ApkInstaller
+import com.medisafe.update.UpdateState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -114,12 +117,41 @@ fun MainScreen(
     val undoAction by viewModel.undoAction.collectAsStateWithLifecycle()
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val confirmRequest by viewModel.confirmRequest.collectAsStateWithLifecycle()
+    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
     var showSearch by remember { mutableStateOf(false) }
     var hidePermissionBanner by remember { mutableStateOf(false) }
     var canScheduleExactAlarms by remember {
         mutableStateOf(AlarmScheduler.canScheduleExactAlarms(context))
+    }
+
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            viewModel.checkForUpdate(manual = false)
+        }
+    }
+
+    LaunchedEffect(updateState) {
+        when (val current = updateState) {
+            is UpdateState.UpToDate -> {
+                snackbarHostState.showSnackbar("You're on the latest version (v${viewModel.currentAppVersion()})")
+                viewModel.consumeUpdateTransient()
+            }
+            is UpdateState.Failed -> if (current.release == null) {
+                snackbarHostState.showSnackbar(current.message)
+                viewModel.consumeUpdateTransient()
+            }
+            else -> Unit
+        }
+    }
+
+    val installPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        if (ApkInstaller.canInstallPackages(context)) {
+            viewModel.downloadAndInstallUpdate()
+        }
     }
 
     LaunchedEffect(lifecycleOwner, section, nextUpcomingReminder?.effectiveTriggerTimeMillis, detailReminder?.id) {
@@ -348,7 +380,29 @@ fun MainScreen(
             preferences = viewModel.preferences,
             onDismiss = { viewModel.closeSettings() },
             onExport = { exportLauncher.launch("medisafe-backup.json") },
-            onImport = { viewModel.importBackup(it, replaceExisting = false) }
+            onImport = { viewModel.importBackup(it, replaceExisting = false) },
+            currentVersion = viewModel.currentAppVersion(),
+            checkingUpdate = updateState is UpdateState.Checking,
+            onCheckForUpdate = { viewModel.checkForUpdate(manual = true) }
+        )
+    }
+    val showUpdateDialog = when (val current = updateState) {
+        is UpdateState.Available, is UpdateState.Downloading, is UpdateState.Installing -> true
+        is UpdateState.Failed -> current.release != null
+        else -> false
+    }
+    if (showUpdateDialog) {
+        UpdateDialog(
+            state = updateState,
+            currentVersion = viewModel.currentAppVersion(),
+            onUpdate = {
+                if (!ApkInstaller.canInstallPackages(context)) {
+                    installPermissionLauncher.launch(ApkInstaller.unknownSourcesIntent(context))
+                } else {
+                    viewModel.downloadAndInstallUpdate()
+                }
+            },
+            onDismiss = { viewModel.dismissUpdate() }
         )
     }
     if (detailReminder != null) {

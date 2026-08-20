@@ -13,6 +13,8 @@ import com.medisafe.data.model.ReminderItem
 import com.medisafe.data.model.ReminderLog
 import com.medisafe.data.prefs.AppPreferences
 import com.medisafe.data.repository.ReminderRepository
+import com.medisafe.update.AppUpdater
+import com.medisafe.update.UpdateState
 import com.medisafe.util.DateTimeUtils
 import com.medisafe.util.DoseTimes
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,6 +75,8 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         application
     )
     val preferences = AppPreferences(application)
+    private val updater = AppUpdater(application, preferences, viewModelScope)
+    val updateState: StateFlow<UpdateState> = updater.state
 
     private val _section = MutableStateFlow(AppSection.HOME)
     val section: StateFlow<AppSection> = _section.asStateFlow()
@@ -285,6 +289,24 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
 
     fun consumeUserMessage() {
         _userMessage.value = null
+    }
+
+    fun currentAppVersion(): String = updater.currentVersion()
+
+    fun checkForUpdate(manual: Boolean) {
+        updater.check(manual)
+    }
+
+    fun downloadAndInstallUpdate() {
+        updater.downloadAndInstall()
+    }
+
+    fun dismissUpdate() {
+        updater.dismiss()
+    }
+
+    fun consumeUpdateTransient() {
+        updater.consumeTransient()
     }
 
     fun openSettings() {
