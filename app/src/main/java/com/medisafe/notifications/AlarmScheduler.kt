@@ -88,7 +88,16 @@ object AlarmScheduler {
         Log.d(TAG, "Scheduled alarm for '${reminder.title}' at $triggerTime")
     }
 
-    fun cancelReminderAlarm(context: Context, reminderId: Long) {
+    /**
+     * @param includeEscalations clearing escalations costs one PendingIntent round-trip per
+     * possible attempt, so bulk rescheduling passes false. Rescheduling is not a dismissal:
+     * an in-flight escalation should survive the app simply being opened.
+     */
+    fun cancelReminderAlarm(
+        context: Context,
+        reminderId: Long,
+        includeEscalations: Boolean = true
+    ) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val intent = Intent(context, ReminderAlarmReceiver::class.java).apply {
             action = ACTION_TRIGGER_REMINDER
@@ -101,7 +110,7 @@ object AlarmScheduler {
         )
         alarmManager.cancel(pendingIntent)
         pendingIntent.cancel()
-        cancelEscalations(context, reminderId)
+        if (includeEscalations) cancelEscalations(context, reminderId)
     }
 
     fun scheduleDailyRecap(context: Context) {
@@ -149,7 +158,11 @@ object AlarmScheduler {
 
     fun cancelEscalations(context: Context, reminderId: Long) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        for (attempt in 1..10) {
+        // Only sweep attempts that could actually have been scheduled, rather than the
+        // full 1..10 range: each iteration is a binder round-trip to system_server.
+        val maxAttempts = AppPreferences(context).escalationMaxAttempts.coerceIn(0, 10)
+        if (maxAttempts == 0) return
+        for (attempt in 1..maxAttempts) {
             val pending = PendingIntent.getBroadcast(
                 context,
                 requestCode(reminderId, 20 + attempt),
@@ -198,7 +211,10 @@ object AlarmScheduler {
             val reminders = AppDatabase.getInstance(appContext).reminderDao().getActiveRemindersSync()
             val vacation = AppPreferences(appContext).isOnVacation
             reminders.filter { !it.isCompleted }.forEach { reminder ->
-                cancelReminderAlarm(appContext, reminder.id)
+                // Skip the escalation sweep here: this runs on every launch/boot/time
+                // change, and clearing escalations per reminder would cost hundreds of
+                // binder calls. A pending re-ring should outlive opening the app anyway.
+                cancelReminderAlarm(appContext, reminder.id, includeEscalations = vacation)
                 if (!vacation) scheduleReminderAlarm(appContext, reminder)
             }
             scheduleDailyRecap(appContext)
