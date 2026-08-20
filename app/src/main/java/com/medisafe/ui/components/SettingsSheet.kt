@@ -53,6 +53,7 @@ fun SettingsSheet(
     var confirmPin by remember { mutableStateOf("") }
     var pinMessage by remember { mutableStateOf<String?>(null) }
     var biometric by remember { mutableStateOf(preferences.biometricEnabled) }
+    var autoUpdate by remember { mutableStateOf(preferences.autoUpdateEnabled) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -71,10 +72,28 @@ fun SettingsSheet(
             Text("UPDATES", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "You're on v$currentVersion. MediSafe checks GitHub releases when you open the app.",
+                "You're on v$currentVersion.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text("Auto-update check", fontWeight = FontWeight.Medium)
+                    Text(
+                        "Only after MediSafe is swiped away from Recents — not on every resume.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = autoUpdate,
+                    onCheckedChange = {
+                        autoUpdate = it
+                        preferences.autoUpdateEnabled = it
+                    }
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedButton(
                 onClick = onCheckForUpdate,

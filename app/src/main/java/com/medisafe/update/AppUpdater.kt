@@ -2,6 +2,7 @@ package com.medisafe.update
 
 import android.content.Context
 import com.medisafe.BuildConfig
+import com.medisafe.MediSafeApp
 import com.medisafe.data.prefs.AppPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,7 +40,6 @@ class AppUpdater(
 
     private var job: Job? = null
     private var dismissedTag: String? = null
-    private var lastAutoCheckAt = 0L
 
     fun currentVersion(): String {
         val installed = preferences.installedReleaseTag
@@ -48,13 +48,13 @@ class AppUpdater(
     }
 
     fun check(manual: Boolean) {
-        val now = System.currentTimeMillis()
+        when (_state.value) {
+            is UpdateState.Downloading, is UpdateState.Installing, is UpdateState.Checking -> return
+            else -> Unit
+        }
         if (!manual) {
-            if (_state.value is UpdateState.Available ||
-                _state.value is UpdateState.Downloading ||
-                _state.value is UpdateState.Installing
-            ) return
-            if (now - lastAutoCheckAt < AUTO_CHECK_INTERVAL_MS) return
+            if (!consumeColdStart()) return
+            if (!preferences.autoUpdateEnabled) return
         }
         job?.cancel()
         job = scope.launch {
@@ -64,7 +64,6 @@ class AppUpdater(
             }
             result.fold(
                 onSuccess = { release ->
-                    lastAutoCheckAt = now
                     val local = currentVersion()
                     if (!AppVersion.isNewer(release.tag, local)) {
                         _state.value = if (manual) UpdateState.UpToDate else UpdateState.Idle
@@ -75,7 +74,6 @@ class AppUpdater(
                     }
                 },
                 onFailure = { error ->
-                    lastAutoCheckAt = now
                     val message = error.message?.takeIf { it.isNotBlank() }
                         ?: "Couldn't check for updates."
                     _state.value = if (manual) {
@@ -135,10 +133,20 @@ class AppUpdater(
     }
 
     fun consumeTransient() {
-        if (_state.value is UpdateState.UpToDate ||
-            (_state.value is UpdateState.Failed && (_state.value as UpdateState.Failed).release == null)
+        val current = _state.value
+        if (current is UpdateState.UpToDate ||
+            (current is UpdateState.Failed && current.release == null)
         ) {
             _state.value = UpdateState.Idle
+        }
+    }
+
+    private fun consumeColdStart(): Boolean {
+        val app = appContext.applicationContext as? MediSafeApp ?: return false
+        synchronized(app) {
+            if (!app.pendingColdStartUpdateCheck) return false
+            app.pendingColdStartUpdateCheck = false
+            return true
         }
     }
 
@@ -173,9 +181,5 @@ class AppUpdater(
             error("Downloaded APK is empty.")
         }
         return dest
-    }
-
-    companion object {
-        private const val AUTO_CHECK_INTERVAL_MS = 10 * 60 * 1000L
     }
 }

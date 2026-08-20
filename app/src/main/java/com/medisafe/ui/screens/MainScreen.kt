@@ -126,10 +126,8 @@ fun MainScreen(
         mutableStateOf(AlarmScheduler.canScheduleExactAlarms(context))
     }
 
-    LaunchedEffect(lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            viewModel.checkForUpdate(manual = false)
-        }
+    LaunchedEffect(Unit) {
+        viewModel.checkForUpdate(manual = false)
     }
 
     LaunchedEffect(updateState) {

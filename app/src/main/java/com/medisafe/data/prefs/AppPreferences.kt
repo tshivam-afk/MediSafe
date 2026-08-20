@@ -23,6 +23,10 @@ class AppPreferences(context: Context) {
             prefs.edit().putString(KEY_INSTALLED_RELEASE, value).apply()
         }
 
+    var autoUpdateEnabled: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_UPDATE, true)
+        set(value) = prefs.edit().putBoolean(KEY_AUTO_UPDATE, value).apply()
+
     val hasPin: Boolean
         get() = !prefs.getString(KEY_PIN_HASH, null).isNullOrBlank()
 
@@ -55,6 +59,7 @@ class AppPreferences(context: Context) {
         private const val KEY_PIN_HASH = "pin_hash"
         private const val KEY_PIN_SALT = "pin_salt"
         private const val KEY_INSTALLED_RELEASE = "installed_release_tag"
+        private const val KEY_AUTO_UPDATE = "auto_update_enabled"
 
         private fun hashPin(pin: String, salt: ByteArray): String {
             val digest = MessageDigest.getInstance("SHA-256")

@@ -98,6 +98,7 @@ object GitHubUpdateSource {
         repeat(6) {
             val conn = (URL(current).openConnection() as HttpURLConnection).apply {
                 instanceFollowRedirects = true
+                useCaches = false
                 connectTimeout = 15_000
                 readTimeout = 30_000
                 requestMethod = "GET"
