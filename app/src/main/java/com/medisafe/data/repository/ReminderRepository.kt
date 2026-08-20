@@ -11,6 +11,7 @@ import com.medisafe.data.model.ReminderCategory
 import com.medisafe.data.model.ReminderItem
 import com.medisafe.data.model.ReminderLog
 import com.medisafe.notifications.AlarmPlayer
+import com.medisafe.notifications.AlarmService
 import com.medisafe.notifications.AlarmScheduler
 import com.medisafe.notifications.NotificationHelper
 import com.medisafe.util.DateTimeUtils
@@ -143,7 +144,7 @@ class ReminderRepository(
         reminderDao.updateReminder(updated)
         syncAlarm(updated)
         maybeNotifyRefill(updated)
-        AlarmPlayer.stop()
+        silenceAlarm(reminder.id)
         ReminderAppWidgetProvider.updateAllWidgets(appContext)
         return updated
     }
@@ -183,7 +184,7 @@ class ReminderRepository(
             )
         )
         AlarmScheduler.scheduleReminderAlarm(appContext, updated)
-        AlarmPlayer.stop()
+        silenceAlarm(reminder.id)
         ReminderAppWidgetProvider.updateAllWidgets(appContext)
         return updated
     }
@@ -234,7 +235,7 @@ class ReminderRepository(
         }
         reminderDao.updateReminder(updated)
         syncAlarm(updated)
-        AlarmPlayer.stop()
+        silenceAlarm(reminder.id)
         ReminderAppWidgetProvider.updateAllWidgets(appContext)
         return updated
     }
@@ -388,6 +389,13 @@ class ReminderRepository(
         } else {
             AlarmScheduler.cancelReminderAlarm(appContext, reminder.id)
         }
+    }
+
+    /** Fully silences a ringing alarm: audio, foreground service and pending re-rings. */
+    private fun silenceAlarm(reminderId: Long) {
+        AlarmService.stop(appContext)
+        AlarmPlayer.stop(appContext)
+        AlarmScheduler.cancelEscalations(appContext, reminderId)
     }
 
     private fun maybeNotifyRefill(reminder: ReminderItem) {

@@ -180,9 +180,13 @@ fun ReminderDetailDialog(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(item.foodTimingEnum.displayName, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F766E))
             }
-            if (item.alertAsAlarm) {
+            if (item.ringsAsAlarm) {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Rings like an alarm until you act", fontWeight = FontWeight.SemiBold, color = Color(0xFFB91C1C))
+                Text(
+                    "Rings like an alarm until you act · ${item.alarmReasonLabel}",
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFB91C1C)
+                )
             }
             if (item.isPrn) {
                 Spacer(modifier = Modifier.height(4.dp))

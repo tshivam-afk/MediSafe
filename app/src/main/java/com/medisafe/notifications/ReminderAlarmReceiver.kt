@@ -14,6 +14,7 @@ import com.medisafe.data.database.AppDatabase
 import com.medisafe.data.model.LogAction
 import com.medisafe.data.model.RecurrenceType
 import com.medisafe.data.model.ReminderCategory
+import com.medisafe.data.prefs.AppPreferences
 import com.medisafe.data.repository.ReminderRepository
 import com.medisafe.util.DateTimeUtils
 import com.medisafe.widget.ReminderAppWidgetProvider
@@ -40,6 +41,7 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
                         if (reminderId == -1L) return@launch
                         when (action) {
                             AlarmScheduler.ACTION_TRIGGER_REMINDER -> handleTriggerReminder(context, reminderId, intent)
+                            AlarmScheduler.ACTION_ESCALATE -> handleEscalate(context, reminderId, intent)
                             AlarmScheduler.ACTION_MARK_DONE, AlarmScheduler.ACTION_WIDGET_TAKE -> handleMarkDone(context, reminderId)
                             AlarmScheduler.ACTION_SNOOZE -> handleSnooze(context, reminderId)
                             AlarmScheduler.ACTION_SKIP -> handleSkip(context, reminderId)
@@ -125,7 +127,8 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         }
         val food = dbItem?.foodTimingEnum?.displayName
         val sticky = dbItem?.isStickyAlert() == true
-        val asAlarm = dbItem?.alertAsAlarm == true
+        // High/urgent items ring as alarms even without the per-item switch.
+        val asAlarm = dbItem?.ringsAsAlarm ?: intent.getBooleanExtra(AlarmScheduler.EXTRA_AS_ALARM, false)
         val contentText = buildString {
             val dose = dbItem?.doseLabel?.ifBlank { details } ?: details
             append(dose.ifBlank { "It's time for your scheduled reminder." })
@@ -178,16 +181,45 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             }
         }
 
-        notificationManager.notify(AlarmScheduler.requestCode(reminderId), notificationBuilder.build())
-
         if (asAlarm) {
-            runCatching { context.startActivity(alarmScreen) }
+            // Hand the ringing to a foreground service. It owns the audio, the wake lock and
+            // the full-screen intent, so the alarm is heard even with the screen off — a
+            // background startActivity() here would simply be blocked on Android 10+.
+            val started = AlarmService.start(context, reminderId)
+            if (!started) {
+                // Service refused: fall back to the alarm-channel notification, which still
+                // carries a full-screen intent and its own alarm sound, so we never go silent.
+                notificationManager.notify(AlarmScheduler.requestCode(reminderId), notificationBuilder.build())
+            }
+            // Even when the alarm rings, queue a re-ring in case it goes unanswered.
+            if (dbItem != null) {
+                AlarmScheduler.scheduleEscalation(context, dbItem, attempt = 1)
+            }
+        } else {
+            notificationManager.notify(AlarmScheduler.requestCode(reminderId), notificationBuilder.build())
         }
 
         if (dbItem != null && dbItem.recurrenceEnum != RecurrenceType.ONCE && dbItem.snoozedUntilMillis == null) {
             AlarmScheduler.scheduleReminderAlarm(context, dbItem)
         }
         ReminderAppWidgetProvider.updateAllWidgets(context)
+    }
+
+    /**
+     * Fires when a high/urgent alarm timed out unanswered: ring again, then queue the
+     * next attempt until we run out of retries.
+     */
+    private suspend fun handleEscalate(context: Context, reminderId: Long, intent: Intent) {
+        val attempt = intent.getIntExtra(AlarmScheduler.EXTRA_ATTEMPT, 1)
+        val item = repository(context).getReminderById(reminderId) ?: return
+        if (!item.isActive || item.isCompleted || !item.ringsAsAlarm) return
+        // Already dealt with since the alarm fired? Then stop nagging.
+        val lastAck = item.lastAcknowledgedMillis ?: 0L
+        if (lastAck >= item.scheduledTimeMillis) return
+        if (AppPreferences(context).isOnVacation) return
+
+        AlarmService.start(context, reminderId)
+        AlarmScheduler.scheduleEscalation(context, item, attempt + 1)
     }
 
     private suspend fun handleMarkDone(context: Context, reminderId: Long) {
@@ -211,7 +243,11 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
     private fun stopRinging(context: Context, reminderId: Long) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.cancel(AlarmScheduler.requestCode(reminderId))
-        AlarmPlayer.stop()
+        notificationManager.cancel(AlarmService.NOTIFICATION_ID)
+        // Stop the service (which owns the tone/wake lock) and drop any queued re-rings.
+        AlarmService.stop(context)
+        AlarmPlayer.stop(context)
+        AlarmScheduler.cancelEscalations(context, reminderId)
         runCatching {
             context.sendBroadcast(
                 Intent(AlarmRingActivity.ACTION_STOP_RINGING).setPackage(context.packageName)

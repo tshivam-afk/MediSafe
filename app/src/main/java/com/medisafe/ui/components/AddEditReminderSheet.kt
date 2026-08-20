@@ -437,17 +437,29 @@ fun AddEditReminderSheet(
                     Spacer(modifier = Modifier.height(8.dp))
                     SettingSwitch("Vibrate on alert", Icons.Outlined.Vibration, vibrateEnabled) { vibrateEnabled = it }
                     Spacer(modifier = Modifier.height(8.dp))
-                    SettingSwitch("Ring like an alarm", Icons.Outlined.Alarm, alertAsAlarm) {
-                        alertAsAlarm = it
-                        if (it) {
-                            soundEnabled = true
-                            vibrateEnabled = true
+                    val forcedByPriority = priority == Priority.HIGH || priority == Priority.URGENT
+                    SettingSwitch(
+                        if (forcedByPriority) "Ring like an alarm (always on for ${priority.displayName.lowercase()})"
+                        else "Ring like an alarm",
+                        Icons.Outlined.Alarm,
+                        alertAsAlarm || forcedByPriority
+                    ) {
+                        // High/urgent always ring, so the switch is locked on for them.
+                        if (!forcedByPriority) {
+                            alertAsAlarm = it
+                            if (it) {
+                                soundEnabled = true
+                                vibrateEnabled = true
+                            }
                         }
                     }
-                    if (alertAsAlarm) {
+                    if (alertAsAlarm || forcedByPriority) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            "Full-screen + looping alarm until you take, snooze, or skip.",
+                            if (forcedByPriority)
+                                "${priority.displayName} priority always rings a full-screen, looping alarm — " +
+                                    "even when the screen is off or the phone is silent."
+                            else "Full-screen + looping alarm until you take, snooze, or skip.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -481,6 +493,8 @@ fun AddEditReminderSheet(
                             priority = priority.name,
                             notificationSound = soundEnabled,
                             vibrate = vibrateEnabled,
+                            // Was previously dropped on save, so the alarm toggle never stuck.
+                            alertAsAlarm = alertAsAlarm,
                             doseTimes = DoseTimes.format(doseTimes),
                             pillsRemaining = pillsText.toIntOrNull(),
                             refillThreshold = thresholdText.toIntOrNull() ?: 5

@@ -80,12 +80,11 @@ class AlarmRingActivity : FragmentActivity() {
                         AppDatabase.getInstance(this@AlarmRingActivity).reminderDao().getReminderById(reminderId)
                     }
                     val reminder = item
-                    if (reminder != null) {
-                        AlarmPlayer.start(
-                            this@AlarmRingActivity,
-                            reminder.notificationSound,
-                            reminder.vibrate
-                        )
+                    // AlarmService normally already rings before this screen appears. Only
+                    // start audio here if it somehow isn't playing (e.g. the service was
+                    // refused), so we never double-play the tone.
+                    if (reminder != null && !AlarmPlayer.isPlaying) {
+                        AlarmService.start(this@AlarmRingActivity, reminder.id)
                     }
                 }
                 AlarmRingScreen(
@@ -117,10 +116,15 @@ class AlarmRingActivity : FragmentActivity() {
     )
 
     private fun stopAndFinish() {
-        AlarmPlayer.stop()
+        AlarmService.stop(this)
+        AlarmPlayer.stop(this)
         val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
         val id = intent?.getLongExtra(AlarmScheduler.EXTRA_REMINDER_ID, -1L) ?: -1L
-        if (id != -1L) nm.cancel(AlarmScheduler.requestCode(id))
+        if (id != -1L) {
+            nm.cancel(AlarmScheduler.requestCode(id))
+            AlarmScheduler.cancelEscalations(this, id)
+        }
+        nm.cancel(AlarmService.NOTIFICATION_ID)
         finish()
     }
 

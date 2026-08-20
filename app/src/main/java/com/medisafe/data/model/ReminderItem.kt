@@ -118,4 +118,24 @@ data class ReminderItem(
 
     fun isStickyAlert(): Boolean =
         priorityEnum == Priority.HIGH || priorityEnum == Priority.URGENT
+
+    /**
+     * High and Urgent items always ring like a real alarm — full-screen, looping, and
+     * audible with the screen off — even if the per-item "Ring like an alarm" switch is off.
+     */
+    val ringsAsAlarm: Boolean
+        get() = alertAsAlarm || priorityEnum == Priority.HIGH || priorityEnum == Priority.URGENT
+
+    /** Urgent items additionally try to punch through Do Not Disturb and force alarm volume. */
+    val isCritical: Boolean
+        get() = priorityEnum == Priority.URGENT
+
+    /** Why this item is ringing as an alarm, for display in the UI. */
+    val alarmReasonLabel: String
+        get() = when {
+            priorityEnum == Priority.URGENT -> "Urgent priority · always rings"
+            priorityEnum == Priority.HIGH -> "High priority · always rings"
+            alertAsAlarm -> "Ring like an alarm"
+            else -> ""
+        }
 }
