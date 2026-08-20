@@ -9,6 +9,17 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Required so alarms can ring with the screen off / device asleep. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.TURN_SCREEN_ON" />
+    <!-- Lets the user exempt MediSafe from Doze so exact alarms are never deferred. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Fallback for OEMs that ignore SCHEDULE_EXACT_ALARM for alarm-clock use cases. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
     <application
         android:name=".MediSafeApp"
         android:allowBackup="true"
@@ -53,6 +64,12 @@
             android:taskAffinity=""
             android:theme="@style/Theme.MediSafe"
             android:turnScreenOn="true" />
+
+        <service
+            android:name=".notifications.AlarmService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback"
+            android:stopWithTask="false" />
 
         <receiver
             android:name=".notifications.ReminderAlarmReceiver"

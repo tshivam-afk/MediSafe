@@ -53,6 +53,10 @@ class ReminderAppWidgetProvider : AppWidgetProvider() {
             val appWidgetManager = AppWidgetManager.getInstance(appContext)
             val componentName = ComponentName(appContext, ReminderAppWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+            // This is called from ~19 places (every take/snooze/skip/save/delete). If the
+            // user has no widget on their home screen, skip the database query entirely
+            // instead of doing the work and throwing the result away.
+            if (appWidgetIds.isEmpty()) return
             appWidgetIds.forEach { appWidgetId ->
                 updateWidget(appContext, appWidgetManager, appWidgetId)
             }

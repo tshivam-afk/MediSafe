@@ -159,8 +159,8 @@ fun ReminderListItem(
                         modifier = Modifier.weight(1f, fill = false)
                     )
 
-                    // Priority Badge if High or Urgent
-                    if (item.alertAsAlarm) {
+                    // Shown for the explicit switch and for high/urgent, which always ring.
+                    if (item.ringsAsAlarm) {
                         Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFFFEE2E2)) {
                             Text(
                                 text = "ALARM",

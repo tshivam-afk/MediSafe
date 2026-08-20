@@ -11,6 +11,7 @@ import com.medisafe.data.model.ReminderCategory
 import com.medisafe.data.model.ReminderItem
 import com.medisafe.data.model.ReminderLog
 import com.medisafe.notifications.AlarmPlayer
+import com.medisafe.notifications.AlarmService
 import com.medisafe.notifications.AlarmScheduler
 import com.medisafe.notifications.NotificationHelper
 import com.medisafe.util.DateTimeUtils
@@ -76,10 +77,12 @@ class ReminderRepository(
             return reminder
         }
         if (reminder.isPrn && reminder.prnMaxPerDay > 0) {
-            val takenToday = reminderDao.getLogsForReminderSync(reminder.id).count { log ->
-                DateTimeUtils.isToday(log.timestampMillis) &&
-                    (log.actionEnum == LogAction.TAKEN || log.actionEnum == LogAction.COMPLETED)
-            }
+            val takenToday = reminderDao.countLogsWithActions(
+                reminderId = reminder.id,
+                actions = listOf(LogAction.TAKEN.name, LogAction.COMPLETED.name),
+                fromMillis = DateTimeUtils.startOfDay(now),
+                toMillis = DateTimeUtils.endOfDay(now)
+            )
             if (takenToday >= reminder.prnMaxPerDay) {
                 return reminder
             }
@@ -143,7 +146,7 @@ class ReminderRepository(
         reminderDao.updateReminder(updated)
         syncAlarm(updated)
         maybeNotifyRefill(updated)
-        AlarmPlayer.stop()
+        silenceAlarm(reminder.id)
         ReminderAppWidgetProvider.updateAllWidgets(appContext)
         return updated
     }
@@ -183,7 +186,7 @@ class ReminderRepository(
             )
         )
         AlarmScheduler.scheduleReminderAlarm(appContext, updated)
-        AlarmPlayer.stop()
+        silenceAlarm(reminder.id)
         ReminderAppWidgetProvider.updateAllWidgets(appContext)
         return updated
     }
@@ -234,7 +237,7 @@ class ReminderRepository(
         }
         reminderDao.updateReminder(updated)
         syncAlarm(updated)
-        AlarmPlayer.stop()
+        silenceAlarm(reminder.id)
         ReminderAppWidgetProvider.updateAllWidgets(appContext)
         return updated
     }
@@ -249,11 +252,13 @@ class ReminderRepository(
             if (dueAt > now - grace) return@forEach
             val lastAck = reminder.lastAcknowledgedMillis ?: reminder.createdAtMillis
             if (dueAt <= lastAck) return@forEach
-            val alreadyLogged = reminderDao.getLogsForReminderSync(reminder.id).any { log ->
-                log.actionEnum == LogAction.MISSED &&
-                    log.timestampMillis >= dueAt &&
-                    log.timestampMillis <= now
-            }
+            // Targeted COUNT instead of loading the reminder's whole log history.
+            val alreadyLogged = reminderDao.countLogsInRange(
+                reminderId = reminder.id,
+                action = LogAction.MISSED.name,
+                fromMillis = dueAt,
+                toMillis = now
+            ) > 0
             if (alreadyLogged) return@forEach
             reminderDao.insertLog(
                 ReminderLog(
@@ -388,6 +393,13 @@ class ReminderRepository(
         } else {
             AlarmScheduler.cancelReminderAlarm(appContext, reminder.id)
         }
+    }
+
+    /** Fully silences a ringing alarm: audio, foreground service and pending re-rings. */
+    private fun silenceAlarm(reminderId: Long) {
+        AlarmService.stop(appContext)
+        AlarmPlayer.stop(appContext)
+        AlarmScheduler.cancelEscalations(appContext, reminderId)
     }
 
     private fun maybeNotifyRefill(reminder: ReminderItem) {

@@ -505,6 +505,42 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** Takes every reminder that shares the same time slot in one go. */
+    private fun markBatch(items: List<ReminderItem>, note: String = "") {
+        if (items.isEmpty()) return
+        if (takeInFlight) return
+        takeInFlight = true
+        viewModelScope.launch {
+            var done = 0
+            items.forEach { item ->
+                runCatching { repository.markDoneOrTaken(item, note) }
+                    .onSuccess { updated ->
+                        if (_detailReminder.value?.id == item.id) _detailReminder.value = updated
+                        if (updated.lastAcknowledgedMillis != item.lastAcknowledgedMillis) done++
+                    }
+            }
+            clearSelection()
+            _userMessage.value = when (done) {
+                0 -> "Nothing to log right now."
+                1 -> "Marked done"
+                else -> "Marked $done reminders done"
+            }
+            takeInFlight = false
+        }
+    }
+
+    /** Adds pills back to a medication's remaining count. */
+    private fun refillReminder(item: ReminderItem, amount: Int) {
+        viewModelScope.launch {
+            runCatching { repository.refillPills(item, amount) }
+                .onSuccess { updated ->
+                    if (_detailReminder.value?.id == item.id) _detailReminder.value = updated
+                    _userMessage.value = "Refilled · ${updated.pillsRemaining} remaining"
+                }
+                .onFailure { _userMessage.value = "Couldn't refill reminder." }
+        }
+    }
+
     fun snoozeReminder(item: ReminderItem, minutes: Int = 15) {
         viewModelScope.launch {
             runCatching { repository.snoozeReminder(item, minutes) }

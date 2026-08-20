@@ -113,6 +113,16 @@ object DateTimeUtils {
         }.timeInMillis
     }
 
+    fun endOfDay(timeMillis: Long = System.currentTimeMillis()): Long {
+        return Calendar.getInstance().apply {
+            timeInMillis = timeMillis
+            set(Calendar.HOUR_OF_DAY, 23)
+            set(Calendar.MINUTE, 59)
+            set(Calendar.SECOND, 59)
+            set(Calendar.MILLISECOND, 999)
+        }.timeInMillis
+    }
+
     fun computeNextOccurrence(
         currentScheduledMillis: Long,
         recurrenceType: RecurrenceType,

@@ -54,6 +54,33 @@ interface ReminderDao {
     @Query("SELECT * FROM reminder_logs WHERE reminderId = :reminderId ORDER BY timestampMillis DESC")
     suspend fun getLogsForReminderSync(reminderId: Long): List<ReminderLog>
 
+    /**
+     * Cheap existence check used by the missed-dose scan, which runs on every alarm.
+     * Avoids loading a reminder's entire log history just to test for one entry.
+     */
+    @Query(
+        "SELECT COUNT(*) FROM reminder_logs WHERE reminderId = :reminderId " +
+            "AND action = :action AND timestampMillis BETWEEN :fromMillis AND :toMillis"
+    )
+    suspend fun countLogsInRange(
+        reminderId: Long,
+        action: String,
+        fromMillis: Long,
+        toMillis: Long
+    ): Int
+
+    /** Counts today's doses for PRN limits without materialising every log row. */
+    @Query(
+        "SELECT COUNT(*) FROM reminder_logs WHERE reminderId = :reminderId " +
+            "AND action IN (:actions) AND timestampMillis BETWEEN :fromMillis AND :toMillis"
+    )
+    suspend fun countLogsWithActions(
+        reminderId: Long,
+        actions: List<String>,
+        fromMillis: Long,
+        toMillis: Long
+    ): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLog(log: ReminderLog): Long
 

@@ -21,6 +21,14 @@ object NotificationHelper {
     const val CHANNEL_ALARM_ID = "channel_med_alarms"
     const val CHANNEL_ALARM_NAME = "Alarm-style reminders"
 
+    /**
+     * Used for the ringing foreground-service notification. It is intentionally silent:
+     * [AlarmPlayer] owns the audio, so giving this channel a sound would play the alarm
+     * tone twice. Importance stays HIGH so the full-screen intent is still honoured.
+     */
+    const val CHANNEL_ALARM_ID_SILENT = "channel_med_alarms_silent"
+    const val CHANNEL_ALARM_NAME_SILENT = "Ringing alarm (screen)"
+
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
@@ -56,6 +64,24 @@ object NotificationHelper {
                     setSound(alarmUri, alarmAttrs)
                     setShowBadge(true)
                     lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                    // Let urgent medication alarms cut through Do Not Disturb.
+                    setBypassDnd(true)
+                }
+            )
+        }
+        if (manager.getNotificationChannel(CHANNEL_ALARM_ID_SILENT) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ALARM_ID_SILENT,
+                    CHANNEL_ALARM_NAME_SILENT,
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "The on-screen alarm card. Sound is played by the alarm itself."
+                    setSound(null, null)
+                    enableVibration(false)
+                    setShowBadge(false)
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                    setBypassDnd(true)
                 }
             )
         }

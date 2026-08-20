@@ -46,6 +46,8 @@ fun SettingsSheet(
     currentVersion: String,
     checkingUpdate: Boolean,
     onCheckForUpdate: () -> Unit,
+    vacationUntilMillis: Long,
+    onVacationDays: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -111,6 +113,9 @@ fun SettingsSheet(
                     Text("Check for updates")
                 }
             }
+            Spacer(modifier = Modifier.height(20.dp))
+            AlarmReliabilitySection(preferences)
+
             Spacer(modifier = Modifier.height(20.dp))
             Text("PAUSE ALERTS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(4.dp))
@@ -214,6 +219,172 @@ fun SettingsSheet(
                 }
             }
         }
+    }
+}
+
+/**
+ * Controls for making alarms audible when the screen is off, plus the battery-optimisation
+ * escape hatch that most OEM ROMs require before exact alarms are trusted.
+ */
+@Composable
+private fun AlarmReliabilitySection(preferences: AppPreferences) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var forceVolume by remember { mutableStateOf(preferences.forceAlarmVolume) }
+    var gradual by remember { mutableStateOf(preferences.gradualAlarmVolume) }
+    var escalation by remember { mutableStateOf(preferences.escalationMinutes) }
+    var timeout by remember { mutableStateOf(preferences.alarmTimeoutMinutes) }
+
+    var batteryUnrestricted by remember {
+        mutableStateOf(isIgnoringBatteryOptimizations(context))
+    }
+
+    Text(
+        "ALARM RELIABILITY",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        "High and Urgent reminders always ring like an alarm — full screen, looping, and audible " +
+            "even when the screen is off or the phone is on silent.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(modifier = Modifier.height(10.dp))
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text("Override silent mode", fontWeight = FontWeight.Medium)
+            Text(
+                "Temporarily raises alarm volume, then restores it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(
+            checked = forceVolume,
+            onCheckedChange = {
+                forceVolume = it
+                preferences.forceAlarmVolume = it
+            }
+        )
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text("Fade alarm in", fontWeight = FontWeight.Medium)
+            Text(
+                "Starts quiet and ramps up instead of blasting instantly.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(
+            checked = gradual,
+            onCheckedChange = {
+                gradual = it
+                preferences.gradualAlarmVolume = it
+            }
+        )
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+    Text("Ring for $timeout min before giving up", style = MaterialTheme.typography.bodySmall)
+    Spacer(modifier = Modifier.height(6.dp))
+    Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+        listOf(2, 5, 10).forEach { minutes ->
+            OutlinedButton(onClick = {
+                timeout = minutes
+                preferences.alarmTimeoutMinutes = minutes
+            }) { Text("$minutes m") }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+    Text(
+        if (escalation <= 0) "Re-ring if ignored: off"
+        else "Re-ring if ignored: every $escalation min",
+        style = MaterialTheme.typography.bodySmall
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+        listOf(0 to "Off", 5 to "5 m", 10 to "10 m", 15 to "15 m").forEach { (minutes, label) ->
+            OutlinedButton(onClick = {
+                escalation = minutes
+                preferences.escalationMinutes = minutes
+            }) { Text(label) }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+    if (batteryUnrestricted) {
+        Text(
+            "✓ Battery optimisation is off for MediSafe — alarms won't be delayed.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+    } else {
+        Text(
+            "Android may delay alarms while the phone sleeps. Allow unrestricted battery use " +
+                "so alarms always fire on time.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        OutlinedButton(
+            onClick = {
+                requestIgnoreBatteryOptimizations(context)
+                batteryUnrestricted = isIgnoringBatteryOptimizations(context)
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Allow unrestricted battery use") }
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
+    OutlinedButton(
+        onClick = { openNotificationSettings(context) },
+        modifier = Modifier.fillMaxWidth()
+    ) { Text("Open notification & alarm settings") }
+}
+
+private fun isIgnoringBatteryOptimizations(context: android.content.Context): Boolean {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return true
+    val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+        ?: return true
+    return pm.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+@android.annotation.SuppressLint("BatteryLife")
+private fun requestIgnoreBatteryOptimizations(context: android.content.Context) {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M) return
+    runCatching {
+        context.startActivity(
+            android.content.Intent(
+                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                android.net.Uri.parse("package:${context.packageName}")
+            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }.onFailure {
+        // Some ROMs hide the direct dialog; fall back to the general battery settings list.
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        }
+    }
+}
+
+private fun openNotificationSettings(context: android.content.Context) {
+    runCatching {
+        val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+        } else {
+            android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(android.net.Uri.parse("package:${context.packageName}"))
+        }
+        context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }
 
