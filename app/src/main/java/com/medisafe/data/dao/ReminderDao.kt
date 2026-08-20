@@ -16,9 +16,6 @@ interface ReminderDao {
     fun getAllReminders(): Flow<List<ReminderItem>>
 
     @Query("SELECT * FROM reminders WHERE isActive = 1 ORDER BY scheduledTimeMillis ASC")
-    fun getActiveReminders(): Flow<List<ReminderItem>>
-
-    @Query("SELECT * FROM reminders WHERE isActive = 1 ORDER BY scheduledTimeMillis ASC")
     suspend fun getActiveRemindersSync(): List<ReminderItem>
 
     @Query("SELECT * FROM reminders ORDER BY scheduledTimeMillis ASC")

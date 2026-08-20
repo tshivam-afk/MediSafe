@@ -109,8 +109,11 @@ object GitHubUpdateSource {
             val code = conn.responseCode
             if (code in 300..399) {
                 val next = conn.getHeaderField("Location")
-                conn.disconnect()
+                // A redirect without a Location can't be followed — hand back the live
+                // connection (the caller will surface the odd status code) rather than
+                // one we already disconnected.
                 if (next.isNullOrBlank()) return conn
+                conn.disconnect()
                 current = next
             } else {
                 return conn

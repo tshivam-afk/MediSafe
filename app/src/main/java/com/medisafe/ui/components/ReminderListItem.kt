@@ -99,7 +99,12 @@ fun ReminderListItem(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 5.dp)
-            .clickable { onClick(item) }
+            // combinedClickable is what makes multi-select reachable: without the
+            // long-press path there is no way to enter selection mode.
+            .combinedClickable(
+                onClick = { onClick(item) },
+                onLongClick = { onLongClick(item) }
+            )
             .testTag("reminder_item_${item.id}"),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = cardBgColor),

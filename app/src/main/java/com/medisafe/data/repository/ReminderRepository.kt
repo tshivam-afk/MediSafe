@@ -248,6 +248,8 @@ class ReminderRepository(
         val reminders = reminderDao.getActiveRemindersSync()
         reminders.forEach { reminder ->
             if (reminder.isCompleted || reminder.isPrn) return@forEach
+            // A finished course of treatment is not a missed dose.
+            if (reminder.isCourseOver()) return@forEach
             val dueAt = reminder.scheduledTimeMillis
             if (dueAt > now - grace) return@forEach
             val lastAck = reminder.lastAcknowledgedMillis ?: reminder.createdAtMillis

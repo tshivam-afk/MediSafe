@@ -85,6 +85,7 @@ class DateTimeUtilsTest {
         assertEquals(8, nextCal.get(Calendar.HOUR_OF_DAY))
     }
 
+    @Test
     fun multiDosePicksLaterSlotSameDay() {
         val calendar = Calendar.getInstance().apply {
             set(2026, Calendar.AUGUST, 18, 8, 5, 0)
@@ -99,5 +100,22 @@ class DateTimeUtilsTest {
         val nextCal = Calendar.getInstance().apply { timeInMillis = next }
         assertEquals(18, nextCal.get(Calendar.DAY_OF_MONTH))
         assertEquals(14, nextCal.get(Calendar.HOUR_OF_DAY))
+    }
+
+    @Test
+    fun onceNeverRollsToAnotherDayEvenWithStaleDoseTimes() {
+        // Legacy data could have several dose times stored on a ONCE reminder; the
+        // multi-dose sweep must never make a one-shot reminder repeat on later days.
+        val calendar = Calendar.getInstance().apply {
+            set(2026, Calendar.AUGUST, 18, 8, 5, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val next = DateTimeUtils.computeNextOccurrence(
+            currentScheduledMillis = calendar.timeInMillis,
+            recurrenceType = RecurrenceType.ONCE,
+            fromTimeMillis = calendar.timeInMillis,
+            doseTimes = listOf(8 to 0, 14 to 0, 20 to 0)
+        )
+        assertEquals(calendar.timeInMillis, next)
     }
 }

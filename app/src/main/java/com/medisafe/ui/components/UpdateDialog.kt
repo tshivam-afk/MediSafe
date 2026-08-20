@@ -109,7 +109,9 @@ fun UpdateDialog(
                         val total = state.totalBytes
                         if (total > 0) {
                             LinearProgressIndicator(
-                                progress = (state.downloadedBytes.toFloat() / total).coerceIn(0f, 1f),
+                                progress = {
+                                    (state.downloadedBytes.toFloat() / total).coerceIn(0f, 1f)
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(modifier = Modifier.height(6.dp))

@@ -28,7 +28,10 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         AlarmScheduler.rescheduleAllActive(this)
-        handleIncomingIntent(intent)
+        // Route extras only on a true cold start. On recreation (rotation, dark-mode
+        // toggle…) the original intent is re-delivered and would otherwise re-open the
+        // detail sheet the user already dismissed.
+        if (savedInstanceState == null) handleIncomingIntent(intent)
 
         setContent {
             val showOnboarding by viewModel.showOnboarding.collectAsStateWithLifecycle()

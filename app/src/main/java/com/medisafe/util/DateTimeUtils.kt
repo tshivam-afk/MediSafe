@@ -131,7 +131,9 @@ object DateTimeUtils {
         doseTimes: List<Pair<Int, Int>> = emptyList(),
         weekdaysMask: Int = 0
     ): Long {
-        if (recurrenceType.isClockBased() && doseTimes.size > 1) {
+        // ONCE is deliberately excluded: it must never roll to the next matching dose
+        // time on a later day, which is exactly what the multi-dose sweep would do.
+        if (recurrenceType != RecurrenceType.ONCE && recurrenceType.isClockBased() && doseTimes.size > 1) {
             return nextMultiDoseOccurrence(
                 currentScheduledMillis,
                 recurrenceType,

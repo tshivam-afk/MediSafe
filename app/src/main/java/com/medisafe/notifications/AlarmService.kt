@@ -41,6 +41,15 @@ class AlarmService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var autoStopRunnable: Runnable? = null
 
+    /**
+     * Set the moment a stop is requested. The Room lookup above finishes on IO and then
+     * posts to the main handler; without this guard that late post could start ringing
+     * AFTER the user (or an ACTION_STOP) already silenced the alarm — with nothing left
+     * running that would ever stop it.
+     */
+    @Volatile
+    private var stopRequested = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -55,6 +64,7 @@ class AlarmService : Service() {
             stopEverything()
             return START_NOT_STICKY
         }
+        stopRequested = false
         // Post a placeholder notification within the 5s ANR window, then enrich it from the DB.
         startForegroundCompat(buildNotification(null, reminderId))
 
@@ -64,6 +74,7 @@ class AlarmService : Service() {
             }.getOrNull()
 
             handler.post {
+                if (stopRequested) return@post
                 startForegroundCompat(buildNotification(item, reminderId))
                 AlarmPlayer.start(
                     context = applicationContext,
@@ -179,6 +190,7 @@ class AlarmService : Service() {
     }
 
     private fun stopEverything() {
+        stopRequested = true
         autoStopRunnable?.let { handler.removeCallbacks(it) }
         autoStopRunnable = null
         AlarmPlayer.stop(applicationContext)
@@ -198,6 +210,7 @@ class AlarmService : Service() {
     }
 
     override fun onDestroy() {
+        stopRequested = true
         autoStopRunnable?.let { handler.removeCallbacks(it) }
         AlarmPlayer.stop(applicationContext)
         scope.cancel()

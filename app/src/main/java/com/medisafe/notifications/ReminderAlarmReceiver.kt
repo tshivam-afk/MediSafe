@@ -57,6 +57,9 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
     }
 
     private suspend fun handleTriggerReminder(context: Context, reminderId: Long, intent: Intent) {
+        // Vacation cancels pending alarms, but a broadcast already in flight when the
+        // pause started could still land here — don't alert during a pause.
+        if (AppPreferences(context).isOnVacation) return
         val repository = repository(context)
         repository.scanAndLogMissed()
         val dbItem = repository.getReminderById(reminderId)

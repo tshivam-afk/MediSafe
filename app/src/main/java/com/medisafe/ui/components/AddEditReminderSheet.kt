@@ -179,6 +179,7 @@ fun AddEditReminderSheet(
                             selectedCategory = category
                             if (category == ReminderCategory.EVENT && recurrence == RecurrenceType.DAILY) {
                                 recurrence = RecurrenceType.ONCE
+                                doseTimes = doseTimes.take(1)
                             }
                         },
                         label = { Text("${category.emoji} ${category.displayName}") },
@@ -265,7 +266,7 @@ fun AddEditReminderSheet(
                         }
                     )
                 }
-                if (!isInterval(recurrence)) {
+                if (canHaveMultipleDoseTimes(recurrence)) {
                     AssistAddChip("Add time") {
                         timePickerTarget = -1
                         showTimePicker = true
@@ -282,7 +283,12 @@ fun AddEditReminderSheet(
                 RecurrenceType.entries.forEach { rec ->
                     FilterChip(
                         selected = recurrence == rec,
-                        onClick = { recurrence = rec },
+                        onClick = {
+                            recurrence = rec
+                            // One-shot and interval schedules run from a single time, so
+                            // don't let stale extra dose times linger when switching types.
+                            if (!canHaveMultipleDoseTimes(rec)) doseTimes = doseTimes.take(1)
+                        },
                         label = { Text(rec.displayName, style = MaterialTheme.typography.labelSmall) }
                     )
                 }
@@ -492,6 +498,13 @@ fun AddEditReminderSheet(
                         set(Calendar.SECOND, 0)
                         set(Calendar.MILLISECOND, 0)
                     }
+                    // Course length is stored as an end date; derive it from the day count
+                    // relative to the (possibly just-edited) start date.
+                    val courseEndMillis = courseDaysText.trim().toIntOrNull()?.let { days ->
+                        DateTimeUtils.endOfDay(
+                            cal.timeInMillis + (days.coerceAtLeast(1) - 1) * 24L * 60 * 60 * 1000
+                        )
+                    }
                     onSave(
                         initialItem.copy(
                             title = title.trim(),
@@ -507,7 +520,21 @@ fun AddEditReminderSheet(
                             alertAsAlarm = alertAsAlarm,
                             doseTimes = DoseTimes.format(doseTimes),
                             pillsRemaining = pillsText.toIntOrNull(),
-                            refillThreshold = thresholdText.toIntOrNull() ?: 5
+                            refillThreshold = thresholdText.toIntOrNull() ?: 5,
+                            // Every other editable field must survive the round trip too —
+                            // these were all previously dropped by this copy().
+                            weekdaysMask = weekdaysMask,
+                            courseEndMillis = courseEndMillis,
+                            isPrn = isPrn,
+                            prnMaxPerDay = prnMax,
+                            foodTiming = foodTiming.name,
+                            form = form.name,
+                            strength = strength.trim(),
+                            expiryMillis = expiryMillis,
+                            pharmacyName = pharmacyName.trim(),
+                            pharmacyPhone = pharmacyPhone.trim(),
+                            doctorName = doctorName.trim(),
+                            doctorPhone = doctorPhone.trim()
                         )
                     )
                 },
@@ -708,4 +735,17 @@ private fun isInterval(type: RecurrenceType): Boolean {
         type == RecurrenceType.EVERY_8_HOURS ||
         type == RecurrenceType.EVERY_12_HOURS ||
         type == RecurrenceType.CUSTOM_HOURS
+}
+
+/**
+ * Only repeating clock-based schedules support several dose times in one day. "Once" and
+ * interval schedules run from a single time — giving them multiple times would make the
+ * next-occurrence math silently repeat them daily.
+ */
+private fun canHaveMultipleDoseTimes(type: RecurrenceType): Boolean {
+    return type == RecurrenceType.DAILY ||
+        type == RecurrenceType.WEEKDAYS ||
+        type == RecurrenceType.WEEKENDS ||
+        type == RecurrenceType.WEEKLY ||
+        type == RecurrenceType.CUSTOM_DAYS
 }

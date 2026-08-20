@@ -81,8 +81,10 @@ object AlarmScheduler {
                 doseTimes = reminder.parsedDoseTimes,
                 weekdaysMask = reminder.weekdaysMask
             )
-            if (reminder.courseEndMillis != null && triggerTime > reminder.courseEndMillis) return
         }
+        // A course that ends before the next occurrence is due is finished — never
+        // schedule beyond it, whichever path computed the trigger time.
+        if (reminder.courseEndMillis != null && triggerTime > reminder.courseEndMillis) return
 
         setWakeup(context, triggerTime, triggerPendingIntent(context, reminder))
         Log.d(TAG, "Scheduled alarm for '${reminder.title}' at $triggerTime")
