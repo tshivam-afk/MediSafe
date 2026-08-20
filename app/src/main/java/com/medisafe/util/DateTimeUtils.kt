@@ -118,10 +118,17 @@ object DateTimeUtils {
         recurrenceType: RecurrenceType,
         customIntervalHours: Int = 0,
         fromTimeMillis: Long = System.currentTimeMillis(),
-        doseTimes: List<Pair<Int, Int>> = emptyList()
+        doseTimes: List<Pair<Int, Int>> = emptyList(),
+        weekdaysMask: Int = 0
     ): Long {
         if (recurrenceType.isClockBased() && doseTimes.size > 1) {
-            return nextMultiDoseOccurrence(currentScheduledMillis, recurrenceType, fromTimeMillis, doseTimes)
+            return nextMultiDoseOccurrence(
+                currentScheduledMillis,
+                recurrenceType,
+                fromTimeMillis,
+                doseTimes,
+                weekdaysMask
+            )
         }
 
         val baseCal = Calendar.getInstance().apply { timeInMillis = currentScheduledMillis }
@@ -195,6 +202,23 @@ object DateTimeUtils {
                 }
                 next.timeInMillis
             }
+            RecurrenceType.CUSTOM_DAYS -> {
+                val next = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, hour)
+                    set(Calendar.MINUTE, minute)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                if (next.timeInMillis <= fromTimeMillis) {
+                    next.add(Calendar.DAY_OF_YEAR, 1)
+                }
+                var guard = 0
+                while (guard < 14 && !Weekdays.has(weekdaysMask, next.get(Calendar.DAY_OF_WEEK))) {
+                    next.add(Calendar.DAY_OF_YEAR, 1)
+                    guard++
+                }
+                next.timeInMillis
+            }
             RecurrenceType.EVERY_4_HOURS -> computeIntervalTime(currentScheduledMillis, fromTimeMillis, 4)
             RecurrenceType.EVERY_6_HOURS -> computeIntervalTime(currentScheduledMillis, fromTimeMillis, 6)
             RecurrenceType.EVERY_8_HOURS -> computeIntervalTime(currentScheduledMillis, fromTimeMillis, 8)
@@ -212,14 +236,16 @@ object DateTimeUtils {
             this == RecurrenceType.DAILY ||
             this == RecurrenceType.WEEKDAYS ||
             this == RecurrenceType.WEEKENDS ||
-            this == RecurrenceType.WEEKLY
+            this == RecurrenceType.WEEKLY ||
+            this == RecurrenceType.CUSTOM_DAYS
     }
 
     private fun nextMultiDoseOccurrence(
         currentScheduledMillis: Long,
         recurrenceType: RecurrenceType,
         fromTimeMillis: Long,
-        doseTimes: List<Pair<Int, Int>>
+        doseTimes: List<Pair<Int, Int>>,
+        weekdaysMask: Int
     ): Long {
         val sorted = doseTimes.sortedWith(compareBy({ it.first }, { it.second }))
         val cursor = Calendar.getInstance().apply { timeInMillis = fromTimeMillis }
@@ -231,7 +257,7 @@ object DateTimeUtils {
                 timeInMillis = cursor.timeInMillis
                 add(Calendar.DAY_OF_YEAR, dayOffset)
             }
-            if (!dayMatches(day, recurrenceType, weeklyDay)) return@repeat
+            if (!dayMatches(day, recurrenceType, weeklyDay, weekdaysMask)) return@repeat
             sorted.forEach { (hour, minute) ->
                 val candidate = Calendar.getInstance().apply {
                     timeInMillis = day.timeInMillis
@@ -246,7 +272,12 @@ object DateTimeUtils {
         return fromTimeMillis + TimeUnit.DAYS.toMillis(1)
     }
 
-    private fun dayMatches(day: Calendar, recurrenceType: RecurrenceType, weeklyDay: Int): Boolean {
+    private fun dayMatches(
+        day: Calendar,
+        recurrenceType: RecurrenceType,
+        weeklyDay: Int,
+        weekdaysMask: Int
+    ): Boolean {
         return when (recurrenceType) {
             RecurrenceType.ONCE, RecurrenceType.DAILY -> true
             RecurrenceType.WEEKDAYS -> {
@@ -258,6 +289,7 @@ object DateTimeUtils {
                 dow == Calendar.SATURDAY || dow == Calendar.SUNDAY
             }
             RecurrenceType.WEEKLY -> day.get(Calendar.DAY_OF_WEEK) == weeklyDay
+            RecurrenceType.CUSTOM_DAYS -> Weekdays.has(weekdaysMask, day.get(Calendar.DAY_OF_WEEK))
             else -> true
         }
     }

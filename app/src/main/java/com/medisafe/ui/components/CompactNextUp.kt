@@ -29,6 +29,8 @@ fun CompactNextUp(
     currentTimeMillis: Long,
     onTakeOrDone: (ReminderItem) -> Unit,
     onClick: (ReminderItem) -> Unit,
+    batchCount: Int = 1,
+    onTakeSlot: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (reminder == null) return
@@ -73,8 +75,14 @@ fun CompactNextUp(
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
             )
-            TextButton(onClick = { onTakeOrDone(reminder) }) {
-                Text(action, fontWeight = FontWeight.Bold)
+            if (batchCount > 1) {
+                TextButton(onClick = onTakeSlot) {
+                    Text("$action all $batchCount", fontWeight = FontWeight.Bold)
+                }
+            } else {
+                TextButton(onClick = { onTakeOrDone(reminder) }) {
+                    Text(action, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

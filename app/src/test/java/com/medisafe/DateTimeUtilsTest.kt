@@ -67,6 +67,24 @@ class DateTimeUtilsTest {
     }
 
     @Test
+    @Test
+    fun customDaysSkipsUnselectedWeekdays() {
+        val calendar = Calendar.getInstance().apply {
+            set(2026, Calendar.AUGUST, 17, 8, 0, 0) // Monday
+            set(Calendar.MILLISECOND, 0)
+        }
+        val mask = com.medisafe.util.Weekdays.bit(Calendar.WEDNESDAY)
+        val next = DateTimeUtils.computeNextOccurrence(
+            currentScheduledMillis = calendar.timeInMillis,
+            recurrenceType = RecurrenceType.CUSTOM_DAYS,
+            fromTimeMillis = calendar.timeInMillis + 60_000L,
+            weekdaysMask = mask
+        )
+        val nextCal = Calendar.getInstance().apply { timeInMillis = next }
+        assertEquals(Calendar.WEDNESDAY, nextCal.get(Calendar.DAY_OF_WEEK))
+        assertEquals(8, nextCal.get(Calendar.HOUR_OF_DAY))
+    }
+
     fun multiDosePicksLaterSlotSameDay() {
         val calendar = Calendar.getInstance().apply {
             set(2026, Calendar.AUGUST, 18, 8, 5, 0)

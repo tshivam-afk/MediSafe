@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.medisafe.data.database.AppDatabase
 import com.medisafe.data.model.DayAdherence
+import com.medisafe.data.model.HomeSort
 import com.medisafe.data.model.LogAction
 import com.medisafe.data.model.Priority
 import com.medisafe.data.model.RecurrenceType
@@ -63,8 +64,10 @@ sealed class UndoAction {
 sealed class ConfirmRequest {
     data class Delete(val items: List<ReminderItem>) : ConfirmRequest()
     data class Take(val item: ReminderItem) : ConfirmRequest()
+    data class BatchTake(val items: List<ReminderItem>) : ConfirmRequest()
     data class Skip(val item: ReminderItem) : ConfirmRequest()
     data class UndoLog(val log: ReminderLog) : ConfirmRequest()
+    data class Refill(val item: ReminderItem) : ConfirmRequest()
     data object ClearHistory : ConfirmRequest()
 }
 
@@ -124,6 +127,14 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
     val confirmRequest: StateFlow<ConfirmRequest?> = _confirmRequest.asStateFlow()
 
     private var takeInFlight = false
+
+    private val _homeSort = MutableStateFlow(
+        runCatching { HomeSort.valueOf(preferences.homeSort) }.getOrDefault(HomeSort.NEXT_DUE)
+    )
+    val homeSort: StateFlow<HomeSort> = _homeSort.asStateFlow()
+
+    private val _vacationUntil = MutableStateFlow(preferences.vacationUntilMillis)
+    val vacationUntil: StateFlow<Long> = _vacationUntil.asStateFlow()
 
     val allReminders: StateFlow<List<ReminderItem>> = repository.allReminders
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -247,6 +258,50 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         _confirmRequest.value = ConfirmRequest.Take(item)
     }
 
+    fun requestBatchTake(items: List<ReminderItem>) {
+        if (items.size == 1) {
+            requestTake(items.first())
+        } else if (items.isNotEmpty()) {
+            _confirmRequest.value = ConfirmRequest.BatchTake(items)
+        }
+    }
+
+    fun requestRefill(item: ReminderItem) {
+        _confirmRequest.value = ConfirmRequest.Refill(item)
+    }
+
+    fun duplicateReminder(item: ReminderItem) {
+        openEditSheet(item.copy(id = 0L, title = "Copy of ${item.title}", lastAcknowledgedMillis = null, isCompleted = false, completedAtMillis = null))
+    }
+
+    fun setHomeSort(sort: HomeSort) {
+        _homeSort.value = sort
+        preferences.homeSort = sort.name
+    }
+
+    fun setVacationDays(days: Int) {
+        val until = if (days <= 0) 0L else System.currentTimeMillis() + days * 24L * 60L * 60L * 1000L
+        preferences.vacationUntilMillis = until
+        _vacationUntil.value = until
+        com.medisafe.notifications.AlarmScheduler.scheduleVacationResume(getApplication(), until)
+        com.medisafe.notifications.AlarmScheduler.rescheduleAllActive(getApplication())
+        _userMessage.value = if (days <= 0) "Alerts resumed" else "Alerts paused for $days day${if (days == 1) "" else "s"}"
+    }
+
+    fun sameSlotBatch(around: ReminderItem?, now: Long = System.currentTimeMillis()): List<ReminderItem> {
+        if (around == null) return emptyList()
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = around.effectiveTriggerTimeMillis }
+        val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        val minute = cal.get(java.util.Calendar.MINUTE)
+        return allReminders.value.filter { item ->
+            if (item.id == around.id || item.isCompleted || !item.isActive || item.isPrn) return@filter false
+            val other = java.util.Calendar.getInstance().apply { timeInMillis = item.effectiveTriggerTimeMillis }
+            other.get(java.util.Calendar.HOUR_OF_DAY) == hour &&
+                other.get(java.util.Calendar.MINUTE) == minute &&
+                kotlin.math.abs(item.effectiveTriggerTimeMillis - around.effectiveTriggerTimeMillis) < 12L * 60L * 60L * 1000L
+        }.let { listOf(around) + it }
+    }
+
     fun requestSkip(item: ReminderItem) {
         _confirmRequest.value = ConfirmRequest.Skip(item)
     }
@@ -263,12 +318,14 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         _confirmRequest.value = null
     }
 
-    fun confirmPending() {
+    fun confirmPending(extra: String = "") {
         when (val request = _confirmRequest.value) {
             is ConfirmRequest.Delete -> deleteReminders(request.items)
-            is ConfirmRequest.Take -> markDoneOrTaken(request.item)
+            is ConfirmRequest.Take -> markDoneOrTaken(request.item, extra)
+            is ConfirmRequest.BatchTake -> markBatch(request.items, extra)
             is ConfirmRequest.Skip -> skipReminder(request.item)
             is ConfirmRequest.UndoLog -> undoHistoryLog(request.log)
+            is ConfirmRequest.Refill -> refillReminder(request.item, extra.toIntOrNull() ?: 10)
             is ConfirmRequest.ClearHistory -> clearAllLogs()
             null -> Unit
         }
@@ -427,11 +484,11 @@ class ReminderViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun markDoneOrTaken(item: ReminderItem) {
+    fun markDoneOrTaken(item: ReminderItem, note: String = "") {
         if (takeInFlight) return
         takeInFlight = true
         viewModelScope.launch {
-            runCatching { repository.markDoneOrTaken(item) }
+            runCatching { repository.markDoneOrTaken(item, note) }
                 .onSuccess { updated ->
                     if (_detailReminder.value?.id == item.id) _detailReminder.value = updated
                     if (updated.lastAcknowledgedMillis != item.lastAcknowledgedMillis) {

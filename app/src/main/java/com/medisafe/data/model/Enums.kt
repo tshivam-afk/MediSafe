@@ -13,6 +13,7 @@ enum class RecurrenceType(val displayName: String) {
     WEEKDAYS("Weekdays (Mon-Fri)"),
     WEEKENDS("Weekends (Sat-Sun)"),
     WEEKLY("Weekly"),
+    CUSTOM_DAYS("Custom days"),
     EVERY_4_HOURS("Every 4 Hours"),
     EVERY_6_HOURS("Every 6 Hours"),
     EVERY_8_HOURS("Every 8 Hours"),
@@ -32,7 +33,33 @@ enum class LogAction(val displayName: String) {
     COMPLETED("Completed"),
     SNOOZED("Snoozed"),
     SKIPPED("Skipped"),
-    MISSED("Missed")
+    MISSED("Missed"),
+    REFILLED("Refilled")
+}
+
+enum class FoodTiming(val displayName: String) {
+    NONE("No food rule"),
+    BEFORE("Before food"),
+    AFTER("After food"),
+    WITH("With food")
+}
+
+enum class MedForm(val displayName: String) {
+    NONE("Form"),
+    TABLET("Tablet"),
+    CAPSULE("Capsule"),
+    SYRUP("Syrup"),
+    INJECTION("Injection"),
+    DROPS("Drops"),
+    INHALER("Inhaler"),
+    OTHER("Other")
+}
+
+enum class HomeSort(val displayName: String) {
+    NEXT_DUE("Next due"),
+    OVERDUE_FIRST("Overdue"),
+    NAME("Name"),
+    PRIORITY("Priority")
 }
 
 data class DayAdherence(

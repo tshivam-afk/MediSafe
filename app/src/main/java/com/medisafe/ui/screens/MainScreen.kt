@@ -73,6 +73,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import com.medisafe.data.model.HomeSort
 import com.medisafe.data.model.ReminderCategory
 import com.medisafe.notifications.AlarmScheduler
 import com.medisafe.ui.components.AddEditReminderSheet
@@ -118,6 +119,8 @@ fun MainScreen(
     val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
     val confirmRequest by viewModel.confirmRequest.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val homeSort by viewModel.homeSort.collectAsStateWithLifecycle()
+    val vacationUntil by viewModel.vacationUntil.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
     var showSearch by remember { mutableStateOf(false) }
@@ -330,9 +333,17 @@ fun MainScreen(
                     onEdit = { viewModel.openEditSheet(it) },
                     onDelete = { viewModel.requestDelete(it) },
                     onSnooze = { viewModel.snoozeReminder(it, 15) },
+                    onDuplicate = { viewModel.duplicateReminder(it) },
+                    onRefill = { viewModel.requestRefill(it) },
                     onOpen = { viewModel.openDetail(it) },
                     selectedIds = selectedIds,
-                    onToggleSelect = { viewModel.startOrToggleSelection(it) }
+                    onToggleSelect = { viewModel.startOrToggleSelection(it) },
+                    homeSort = homeSort,
+                    onSort = { viewModel.setHomeSort(it) },
+                    vacationUntilMillis = vacationUntil,
+                    onResumeAlerts = { viewModel.setVacationDays(0) },
+                    sameSlotCount = viewModel.sameSlotBatch(nextUpcomingReminder).size,
+                    onTakeSlot = { viewModel.requestBatchTake(viewModel.sameSlotBatch(nextUpcomingReminder)) }
                 )
                 AppSection.HISTORY -> HistoryLogTab(
                     logs = filteredLogs,
@@ -361,7 +372,7 @@ fun MainScreen(
     confirmRequest?.let { request ->
         ConfirmRequestDialog(
             request = request,
-            onConfirm = { viewModel.confirmPending() },
+            onConfirm = { viewModel.confirmPending(it) },
             onDismiss = { viewModel.dismissConfirm() }
         )
     }
@@ -381,7 +392,9 @@ fun MainScreen(
             onImport = { viewModel.importBackup(it, replaceExisting = false) },
             currentVersion = viewModel.currentAppVersion(),
             checkingUpdate = updateState is UpdateState.Checking,
-            onCheckForUpdate = { viewModel.checkForUpdate(manual = true) }
+            onCheckForUpdate = { viewModel.checkForUpdate(manual = true) },
+            vacationUntilMillis = vacationUntil,
+            onVacationDays = { viewModel.setVacationDays(it) }
         )
     }
     val showUpdateDialog = when (val current = updateState) {
@@ -415,7 +428,12 @@ fun MainScreen(
                 viewModel.closeDetail()
                 viewModel.openEditSheet(it)
             },
-            onDelete = { viewModel.requestDelete(it) }
+            onDelete = { viewModel.requestDelete(it) },
+            onDuplicate = {
+                viewModel.closeDetail()
+                viewModel.duplicateReminder(it)
+            },
+            onRefill = { viewModel.requestRefill(it) }
         )
     }
 }
@@ -457,11 +475,52 @@ private fun HomePane(
     onEdit: (com.medisafe.data.model.ReminderItem) -> Unit,
     onDelete: (com.medisafe.data.model.ReminderItem) -> Unit,
     onSnooze: (com.medisafe.data.model.ReminderItem) -> Unit,
+    onDuplicate: (com.medisafe.data.model.ReminderItem) -> Unit,
+    onRefill: (com.medisafe.data.model.ReminderItem) -> Unit,
     onOpen: (com.medisafe.data.model.ReminderItem) -> Unit,
     selectedIds: Set<Long>,
-    onToggleSelect: (com.medisafe.data.model.ReminderItem) -> Unit
+    onToggleSelect: (com.medisafe.data.model.ReminderItem) -> Unit,
+    homeSort: HomeSort,
+    onSort: (HomeSort) -> Unit,
+    vacationUntilMillis: Long,
+    onResumeAlerts: () -> Unit,
+    sameSlotCount: Int,
+    onTakeSlot: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
+        if (vacationUntilMillis > System.currentTimeMillis()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Alerts paused until ${com.medisafe.util.DateTimeUtils.formatDateTime(vacationUntilMillis)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = onResumeAlerts) { Text("Resume") }
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            HomeSort.entries.forEach { sort ->
+                FilterChip(
+                    selected = homeSort == sort,
+                    onClick = { onSort(sort) },
+                    label = { Text(sort.displayName, fontSize = 12.sp) }
+                )
+            }
+        }
         if (showSearch || searchQuery.isNotBlank()) {
             OutlinedTextField(
                 value = searchQuery,
@@ -508,7 +567,9 @@ private fun HomePane(
                 reminder = nextUpcomingReminder,
                 currentTimeMillis = currentTimeMillis,
                 onTakeOrDone = onTake,
-                onClick = onOpen
+                onClick = onOpen,
+                batchCount = sameSlotCount,
+                onTakeSlot = onTakeSlot
             )
         }
 
@@ -558,6 +619,8 @@ private fun HomePane(
                         onEdit = onEdit,
                         onDelete = onDelete,
                         onSnooze = onSnooze,
+                        onDuplicate = onDuplicate,
+                        onRefill = onRefill,
                         onClick = onOpen,
                         onLongClick = onToggleSelect,
                         selected = item.id in selectedIds,

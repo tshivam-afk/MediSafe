@@ -112,6 +112,28 @@ fun SettingsSheet(
                 }
             }
             Spacer(modifier = Modifier.height(20.dp))
+            Text("PAUSE ALERTS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                if (vacationUntilMillis > System.currentTimeMillis())
+                    "Muted until ${com.medisafe.util.DateTimeUtils.formatDateTime(vacationUntilMillis)}"
+                else "Mute every reminder without deleting them.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                listOf(1 to "1 day", 3 to "3 days", 7 to "7 days").forEach { (days, label) ->
+                    OutlinedButton(onClick = { onVacationDays(days) }) { Text(label) }
+                }
+            }
+            if (vacationUntilMillis > System.currentTimeMillis()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = { onVacationDays(0) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Resume alerts now")
+                }
+            }
+            Spacer(modifier = Modifier.height(20.dp))
             Text("BACKUP", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(modifier = Modifier.height(8.dp))
             Button(onClick = onExport, modifier = Modifier.fillMaxWidth()) {

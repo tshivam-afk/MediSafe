@@ -8,10 +8,13 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import android.widget.RemoteViews
+import android.view.View
 import com.medisafe.MainActivity
 import com.medisafe.R
 import com.medisafe.data.database.AppDatabase
 import com.medisafe.data.model.ReminderCategory
+import com.medisafe.notifications.AlarmScheduler
+import com.medisafe.notifications.ReminderAlarmReceiver
 import com.medisafe.util.DateTimeUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,7 +79,7 @@ class ReminderAppWidgetProvider : AppWidgetProvider() {
                 try {
                     val activeReminders = AppDatabase.getInstance(context).reminderDao()
                         .getActiveRemindersSync()
-                        .filter { !it.isCompleted }
+                        .filter { !it.isCompleted && !it.isPrn }
                         .sortedBy { it.effectiveTriggerTimeMillis }
                     val nextReminder = activeReminders.firstOrNull()
 

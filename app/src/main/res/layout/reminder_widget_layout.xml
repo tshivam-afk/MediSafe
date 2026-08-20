@@ -81,13 +81,17 @@
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/widget_open_btn"
+            android:id="@+id/widget_take_btn"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="OPEN APP ›"
-            android:textColor="#38BDF8"
+            android:background="@drawable/widget_badge_bg"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:text="@string/widget_take"
+            android:textColor="@color/widget_badge_text"
             android:textSize="11sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:visibility="gone" />
     </LinearLayout>
 
 </LinearLayout>

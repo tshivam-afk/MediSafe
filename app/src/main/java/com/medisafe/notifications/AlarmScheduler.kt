@@ -9,6 +9,7 @@ import android.util.Log
 import com.medisafe.data.database.AppDatabase
 import com.medisafe.data.model.RecurrenceType
 import com.medisafe.data.model.ReminderItem
+import com.medisafe.data.prefs.AppPreferences
 import com.medisafe.util.DateTimeUtils
 import com.medisafe.widget.ReminderAppWidgetProvider
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -23,8 +24,11 @@ object AlarmScheduler {
     const val ACTION_TRIGGER_REMINDER = "com.medisafe.app.ACTION_TRIGGER"
     const val ACTION_MARK_DONE = "com.medisafe.app.ACTION_MARK_DONE"
     const val ACTION_SNOOZE = "com.medisafe.app.ACTION_SNOOZE"
+    const val ACTION_SKIP = "com.medisafe.app.ACTION_SKIP"
     const val ACTION_DAILY_RECAP = "com.medisafe.app.ACTION_DAILY_RECAP"
     const val ACTION_WIDGET_REFRESH = "com.medisafe.app.ACTION_WIDGET_REFRESH"
+    const val ACTION_WIDGET_TAKE = "com.medisafe.app.ACTION_WIDGET_TAKE"
+    const val ACTION_VACATION_END = "com.medisafe.app.ACTION_VACATION_END"
 
     const val EXTRA_REMINDER_ID = "extra_reminder_id"
     const val EXTRA_TITLE = "extra_title"
@@ -54,7 +58,9 @@ object AlarmScheduler {
     }
 
     fun scheduleReminderAlarm(context: Context, reminder: ReminderItem) {
-        if (!reminder.isActive || reminder.isCompleted) return
+        if (!reminder.shouldAlert) return
+        if (AppPreferences(context).isOnVacation) return
+        if (reminder.isCourseOver()) return
 
         val now = System.currentTimeMillis()
         var triggerTime = reminder.effectiveTriggerTimeMillis
@@ -68,8 +74,10 @@ object AlarmScheduler {
                 recurrenceType = reminder.recurrenceEnum,
                 customIntervalHours = reminder.customIntervalHours,
                 fromTimeMillis = now,
-                doseTimes = reminder.parsedDoseTimes
+                doseTimes = reminder.parsedDoseTimes,
+                weekdaysMask = reminder.weekdaysMask
             )
+            if (reminder.courseEndMillis != null && triggerTime > reminder.courseEndMillis) return
         }
 
         setWakeup(context, triggerTime, triggerPendingIntent(context, reminder))
@@ -127,8 +135,10 @@ object AlarmScheduler {
         val appContext = context.applicationContext
         scope.launch {
             val reminders = AppDatabase.getInstance(appContext).reminderDao().getActiveRemindersSync()
+            val vacation = AppPreferences(appContext).isOnVacation
             reminders.filter { !it.isCompleted }.forEach { reminder ->
-                scheduleReminderAlarm(appContext, reminder)
+                cancelReminderAlarm(appContext, reminder.id)
+                if (!vacation) scheduleReminderAlarm(appContext, reminder)
             }
             scheduleDailyRecap(appContext)
             ReminderAppWidgetProvider.updateAllWidgets(appContext)

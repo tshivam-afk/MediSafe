@@ -57,6 +57,18 @@ object BackupManager {
             put("lastAcknowledgedMillis", item.lastAcknowledgedMillis)
             put("pillsRemaining", item.pillsRemaining)
             put("refillThreshold", item.refillThreshold)
+            put("courseEndMillis", item.courseEndMillis)
+            put("weekdaysMask", item.weekdaysMask)
+            put("isPrn", item.isPrn)
+            put("prnMaxPerDay", item.prnMaxPerDay)
+            put("foodTiming", item.foodTiming)
+            put("expiryMillis", item.expiryMillis)
+            put("strength", item.strength)
+            put("form", item.form)
+            put("pharmacyName", item.pharmacyName)
+            put("pharmacyPhone", item.pharmacyPhone)
+            put("doctorName", item.doctorName)
+            put("doctorPhone", item.doctorPhone)
         }
     }
 
@@ -84,7 +96,19 @@ object BackupManager {
             pillsRemaining = if (json.has("pillsRemaining") && !json.isNull("pillsRemaining")) {
                 json.optInt("pillsRemaining")
             } else null,
-            refillThreshold = json.optInt("refillThreshold", 5)
+            refillThreshold = json.optInt("refillThreshold", 5),
+            courseEndMillis = json.optLongOrNull("courseEndMillis"),
+            weekdaysMask = json.optInt("weekdaysMask", 0),
+            isPrn = json.optBoolean("isPrn", false),
+            prnMaxPerDay = json.optInt("prnMaxPerDay", 3),
+            foodTiming = json.optString("foodTiming", "NONE"),
+            expiryMillis = json.optLongOrNull("expiryMillis"),
+            strength = json.optString("strength"),
+            form = json.optString("form", "NONE"),
+            pharmacyName = json.optString("pharmacyName"),
+            pharmacyPhone = json.optString("pharmacyPhone"),
+            doctorName = json.optString("doctorName"),
+            doctorPhone = json.optString("doctorPhone")
         )
     }
 

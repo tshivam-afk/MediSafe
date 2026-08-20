@@ -12,7 +12,7 @@ import com.medisafe.data.model.ReminderLog
 
 @Database(
     entities = [ReminderItem::class, ReminderLog::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -31,6 +31,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE reminders ADD COLUMN courseEndMillis INTEGER")
+                db.execSQL("ALTER TABLE reminders ADD COLUMN weekdaysMask INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE reminders ADD COLUMN isPrn INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE reminders ADD COLUMN prnMaxPerDay INTEGER NOT NULL DEFAULT 3")
+                db.execSQL("ALTER TABLE reminders ADD COLUMN foodTiming TEXT NOT NULL DEFAULT 'NONE'")
+                db.execSQL("ALTER TABLE reminders ADD COLUMN expiryMillis INTEGER")
+                db.execSQL("ALTER TABLE reminders ADD COLUMN strength TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE reminders ADD COLUMN form TEXT NOT NULL DEFAULT 'NONE'")
+                db.execSQL("ALTER TABLE reminders ADD COLUMN pharmacyName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE reminders ADD COLUMN pharmacyPhone TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE reminders ADD COLUMN doctorName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE reminders ADD COLUMN doctorPhone TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -38,7 +55,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "medisafe_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                     .also { INSTANCE = it }

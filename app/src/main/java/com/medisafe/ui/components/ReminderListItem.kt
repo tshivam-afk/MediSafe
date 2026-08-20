@@ -65,6 +65,8 @@ fun ReminderListItem(
     onEdit: (ReminderItem) -> Unit,
     onDelete: (ReminderItem) -> Unit,
     onSnooze: (ReminderItem) -> Unit,
+    onDuplicate: (ReminderItem) -> Unit = {},
+    onRefill: (ReminderItem) -> Unit = {},
     onClick: (ReminderItem) -> Unit,
     onLongClick: (ReminderItem) -> Unit = {},
     selected: Boolean = false,
@@ -158,6 +160,28 @@ fun ReminderListItem(
                     )
 
                     // Priority Badge if High or Urgent
+                    if (item.isPrn) {
+                        Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFFE0E7FF)) {
+                            Text(
+                                text = "PRN",
+                                color = Color(0xFF3730A3),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                    if (item.isExpired || item.expirySoon) {
+                        Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFFFEE2E2)) {
+                            Text(
+                                text = if (item.isExpired) "EXPIRED" else "EXPIRING",
+                                color = Color(0xFFB91C1C),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
                     if (item.needsRefill) {
                         Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFFFFEDD5)) {
                             Text(
@@ -186,10 +210,17 @@ fun ReminderListItem(
                     }
                 }
 
-                if (item.dosageOrDetails.isNotBlank()) {
+                    val subtitle = item.doseLabel
+                    if (subtitle.isNotBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = item.dosageOrDetails,
+                        text = buildString {
+                            append(subtitle)
+                            if (item.foodTimingEnum != com.medisafe.data.model.FoodTiming.NONE) {
+                                append(" · ")
+                                append(item.foodTimingEnum.displayName)
+                            }
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -220,7 +251,7 @@ fun ReminderListItem(
                             )
                             Spacer(modifier = Modifier.width(2.dp))
                             Text(
-                                text = item.recurrenceEnum.displayName,
+                                text = item.recurrenceLabel,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontSize = 10.sp

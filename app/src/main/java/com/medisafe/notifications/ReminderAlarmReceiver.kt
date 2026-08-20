@@ -34,13 +34,15 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
                 when (action) {
                     AlarmScheduler.ACTION_DAILY_RECAP -> handleDailyRecap(context)
                     AlarmScheduler.ACTION_WIDGET_REFRESH -> handleWidgetRefresh(context)
+                    AlarmScheduler.ACTION_VACATION_END -> AlarmScheduler.rescheduleAllActive(context)
                     else -> {
                         val reminderId = intent.getLongExtra(AlarmScheduler.EXTRA_REMINDER_ID, -1L)
                         if (reminderId == -1L) return@launch
                         when (action) {
                             AlarmScheduler.ACTION_TRIGGER_REMINDER -> handleTriggerReminder(context, reminderId, intent)
-                            AlarmScheduler.ACTION_MARK_DONE -> handleMarkDone(context, reminderId)
+                            AlarmScheduler.ACTION_MARK_DONE, AlarmScheduler.ACTION_WIDGET_TAKE -> handleMarkDone(context, reminderId)
                             AlarmScheduler.ACTION_SNOOZE -> handleSnooze(context, reminderId)
+                            AlarmScheduler.ACTION_SKIP -> handleSkip(context, reminderId)
                         }
                     }
                 }
@@ -102,6 +104,17 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val skipIntent = Intent(context, ReminderAlarmReceiver::class.java).apply {
+            this.action = AlarmScheduler.ACTION_SKIP
+            putExtra(AlarmScheduler.EXTRA_REMINDER_ID, reminderId)
+        }
+        val skipPendingIntent = PendingIntent.getBroadcast(
+            context,
+            AlarmScheduler.requestCode(reminderId, 4),
+            skipIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val isMed = category == ReminderCategory.MEDICATION.name
         val actionDoneTitle = if (isMed) "Take now" else "Mark done"
         val headerTitle = when (category) {
@@ -110,7 +123,16 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             ReminderCategory.EVENT.name -> "Event: $title"
             else -> "Reminder: $title"
         }
-        val contentText = details.ifBlank { "It's time for your scheduled reminder." }
+        val food = dbItem?.foodTimingEnum?.displayName
+        val sticky = dbItem?.isStickyAlert() == true
+        val contentText = buildString {
+            val dose = dbItem?.doseLabel?.ifBlank { details } ?: details
+            append(dose.ifBlank { "It's time for your scheduled reminder." })
+            if (!food.isNullOrBlank() && food != "No food rule") {
+                append(" · ")
+                append(food)
+            }
+        }
 
         val notificationBuilder = NotificationCompat.Builder(context, NotificationHelper.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
@@ -120,13 +142,15 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
                 NotificationCompat.BigTextStyle()
                     .bigText("$contentText\nScheduled for ${DateTimeUtils.formatTime(System.currentTimeMillis())}")
             )
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(if (sticky) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setAutoCancel(true)
+            .setAutoCancel(!sticky)
+            .setOngoing(sticky)
             .setOnlyAlertOnce(true)
             .setContentIntent(contentPendingIntent)
             .addAction(0, actionDoneTitle, donePendingIntent)
             .addAction(0, "Snooze 15m", snoozePendingIntent)
+            .addAction(0, "Skip", skipPendingIntent)
 
         if (hasVibrate) {
             notificationBuilder.setVibrate(longArrayOf(0, 500, 200, 500))

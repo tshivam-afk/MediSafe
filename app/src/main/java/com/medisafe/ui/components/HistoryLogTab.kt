@@ -116,7 +116,7 @@ fun HistoryLogTab(
                     label = { Text(category.emoji + " " + category.displayName) }
                 )
             }
-            listOf(LogAction.TAKEN, LogAction.MISSED, LogAction.SKIPPED, LogAction.SNOOZED).forEach { action ->
+            listOf(LogAction.TAKEN, LogAction.MISSED, LogAction.SKIPPED, LogAction.SNOOZED, LogAction.REFILLED).forEach { action ->
                 FilterChip(
                     selected = filters.action == action,
                     onClick = {
@@ -162,6 +162,7 @@ fun HistoryLogTab(
                         LogAction.SNOOZED -> Triple(Color(0xFFF59E0B), Icons.Default.Snooze, "Snoozed")
                         LogAction.SKIPPED -> Triple(Color(0xFFEF4444), Icons.Default.Close, "Skipped")
                         LogAction.MISSED -> Triple(Color(0xFFB45309), Icons.Default.Warning, "Missed")
+                        LogAction.REFILLED -> Triple(Color(0xFF0284C7), Icons.Default.CheckCircle, "Refilled")
                     }
                     Card(
                         modifier = Modifier.fillMaxWidth().testTag("log_item_${log.id}"),

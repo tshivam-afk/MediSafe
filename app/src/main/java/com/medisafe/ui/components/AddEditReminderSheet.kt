@@ -64,12 +64,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.medisafe.data.model.FoodTiming
+import com.medisafe.data.model.MedForm
 import com.medisafe.data.model.Priority
 import com.medisafe.data.model.RecurrenceType
 import com.medisafe.data.model.ReminderCategory
 import com.medisafe.data.model.ReminderItem
 import com.medisafe.util.DateTimeUtils
 import com.medisafe.util.DoseTimes
+import com.medisafe.util.Weekdays
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -102,6 +105,26 @@ fun AddEditReminderSheet(
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var timePickerTarget by remember { mutableStateOf<Int?>(null) }
+    var isPrn by remember { mutableStateOf(initialItem.isPrn) }
+    var prnMax by remember { mutableIntStateOf(initialItem.prnMaxPerDay.coerceIn(1, 12)) }
+    var foodTiming by remember { mutableStateOf(initialItem.foodTimingEnum) }
+    var form by remember { mutableStateOf(initialItem.formEnum) }
+    var strength by remember { mutableStateOf(initialItem.strength) }
+    var weekdaysMask by remember { mutableIntStateOf(initialItem.weekdaysMask) }
+    var courseDaysText by remember {
+        mutableStateOf(
+            initialItem.courseEndMillis?.let {
+                val days = ((it - System.currentTimeMillis()) / (24L * 60 * 60 * 1000) + 1).toInt().coerceAtLeast(1)
+                days.toString()
+            }.orEmpty()
+        )
+    }
+    var expiryMillis by remember { mutableStateOf(initialItem.expiryMillis) }
+    var showExpiryPicker by remember { mutableStateOf(false) }
+    var pharmacyName by remember { mutableStateOf(initialItem.pharmacyName) }
+    var pharmacyPhone by remember { mutableStateOf(initialItem.pharmacyPhone) }
+    var doctorName by remember { mutableStateOf(initialItem.doctorName) }
+    var doctorPhone by remember { mutableStateOf(initialItem.doctorPhone) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -258,6 +281,18 @@ fun AddEditReminderSheet(
                     )
                 }
             }
+            if (recurrence == RecurrenceType.CUSTOM_DAYS) {
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Weekdays.orderedDays.forEach { day ->
+                        FilterChip(
+                            selected = Weekdays.has(weekdaysMask, day) && weekdaysMask != 0,
+                            onClick = { weekdaysMask = Weekdays.toggle(if (weekdaysMask == 0) 0 else weekdaysMask, day).let { if (weekdaysMask == 0) Weekdays.bit(day) else it } },
+                            label = { Text(Weekdays.labelFor(day)) }
+                        )
+                    }
+                }
+            }
             if (recurrence == RecurrenceType.CUSTOM_HOURS) {
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
@@ -288,6 +323,21 @@ fun AddEditReminderSheet(
                         modifier = Modifier.weight(1f)
                     )
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(onClick = { showExpiryPicker = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        expiryMillis?.let { "Expires ${DateTimeUtils.formatDate(it)}" } ?: "Expiry date (optional)"
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                SectionLabel("PHARMACY & DOCTOR")
+                OutlinedTextField(value = pharmacyName, onValueChange = { pharmacyName = it.take(40) }, label = { Text("Pharmacy") }, modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(value = pharmacyPhone, onValueChange = { pharmacyPhone = it.filter { ch -> ch.isDigit() || ch == '+' }.take(16) }, label = { Text("Pharmacy phone") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(value = doctorName, onValueChange = { doctorName = it.take(40) }, label = { Text("Doctor") }, modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(value = doctorPhone, onValueChange = { doctorPhone = it.filter { ch -> ch.isDigit() || ch == '+' }.take(16) }, label = { Text("Doctor phone") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -403,6 +453,25 @@ fun AddEditReminderSheet(
         ) {
             DatePicker(state = dateState)
         }
+    }
+
+    if (showExpiryPicker) {
+        val dateState = rememberDatePickerState(initialSelectedDateMillis = expiryMillis ?: scheduledTimeMillis)
+        DatePickerDialog(
+            onDismissRequest = { showExpiryPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    expiryMillis = dateState.selectedDateMillis
+                    showExpiryPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    expiryMillis = null
+                    showExpiryPicker = false
+                }) { Text("Clear") }
+            }
+        ) { DatePicker(state = dateState) }
     }
 
     if (showTimePicker) {

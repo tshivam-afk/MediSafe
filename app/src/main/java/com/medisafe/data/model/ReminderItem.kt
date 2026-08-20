@@ -3,7 +3,9 @@ package com.medisafe.data.model
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.medisafe.util.DateTimeUtils
 import com.medisafe.util.DoseTimes
+import com.medisafe.util.Weekdays
 
 @Entity(
     tableName = "reminders",
@@ -34,7 +36,19 @@ data class ReminderItem(
     val doseTimes: String = "",
     val lastAcknowledgedMillis: Long? = null,
     val pillsRemaining: Int? = null,
-    val refillThreshold: Int = 5
+    val refillThreshold: Int = 5,
+    val courseEndMillis: Long? = null,
+    val weekdaysMask: Int = 0,
+    val isPrn: Boolean = false,
+    val prnMaxPerDay: Int = 3,
+    val foodTiming: String = FoodTiming.NONE.name,
+    val expiryMillis: Long? = null,
+    val strength: String = "",
+    val form: String = MedForm.NONE.name,
+    val pharmacyName: String = "",
+    val pharmacyPhone: String = "",
+    val doctorName: String = "",
+    val doctorPhone: String = ""
 ) {
     val categoryEnum: ReminderCategory
         get() = runCatching { ReminderCategory.valueOf(category) }.getOrDefault(ReminderCategory.MEDICATION)
@@ -44,6 +58,12 @@ data class ReminderItem(
 
     val priorityEnum: Priority
         get() = runCatching { Priority.valueOf(priority) }.getOrDefault(Priority.NORMAL)
+
+    val foodTimingEnum: FoodTiming
+        get() = runCatching { FoodTiming.valueOf(foodTiming) }.getOrDefault(FoodTiming.NONE)
+
+    val formEnum: MedForm
+        get() = runCatching { MedForm.valueOf(form) }.getOrDefault(MedForm.NONE)
 
     val effectiveTriggerTimeMillis: Long
         get() = snoozedUntilMillis ?: scheduledTimeMillis
@@ -56,4 +76,45 @@ data class ReminderItem(
             val remaining = pillsRemaining ?: return false
             return remaining <= refillThreshold.coerceAtLeast(0)
         }
+
+    val isExpired: Boolean
+        get() = expiryMillis != null && expiryMillis < System.currentTimeMillis()
+
+    val expirySoon: Boolean
+        get() {
+            val expiry = expiryMillis ?: return false
+            val now = System.currentTimeMillis()
+            return expiry in now..(now + 7L * 24 * 60 * 60 * 1000)
+        }
+
+    val shouldAlert: Boolean
+        get() = isActive && !isCompleted && !isPrn
+
+    val doseLabel: String
+        get() = buildString {
+            if (strength.isNotBlank()) append(strength)
+            if (formEnum != MedForm.NONE) {
+                if (isNotEmpty()) append(" ")
+                append(formEnum.displayName.lowercase())
+            }
+            if (dosageOrDetails.isNotBlank()) {
+                if (isNotEmpty()) append(" · ")
+                append(dosageOrDetails)
+            }
+        }
+
+    val recurrenceLabel: String
+        get() = if (recurrenceEnum == RecurrenceType.CUSTOM_DAYS) {
+            Weekdays.shortLabel(weekdaysMask)
+        } else {
+            recurrenceEnum.displayName
+        }
+
+    fun isCourseOver(atMillis: Long = System.currentTimeMillis()): Boolean {
+        val end = courseEndMillis ?: return false
+        return atMillis > end
+    }
+
+    fun isStickyAlert(): Boolean =
+        priorityEnum == Priority.HIGH || priorityEnum == Priority.URGENT
 }

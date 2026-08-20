@@ -67,6 +67,8 @@ fun ReminderDetailDialog(
     onSkip: (ReminderItem) -> Unit,
     onEdit: (ReminderItem) -> Unit,
     onDelete: (ReminderItem) -> Unit,
+    onDuplicate: (ReminderItem) -> Unit = {},
+    onRefill: (ReminderItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (item == null) return
@@ -124,6 +126,9 @@ fun ReminderDetailDialog(
                 }
 
                 Row {
+                    IconButton(onClick = { onDuplicate(item) }) {
+                        Icon(Icons.Default.Repeat, contentDescription = "Duplicate")
+                    }
                     IconButton(onClick = { onEdit(item) }) {
                         Icon(Icons.Outlined.Edit, contentDescription = "Edit")
                     }
@@ -166,6 +171,19 @@ fun ReminderDetailDialog(
                     textAlign = TextAlign.Center
                 )
             }
+            val dose = item.doseLabel
+            if (dose.isNotBlank() && dose != item.dosageOrDetails) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(dose, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (item.foodTimingEnum != com.medisafe.data.model.FoodTiming.NONE) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(item.foodTimingEnum.displayName, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F766E))
+            }
+            if (item.isPrn) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("As needed · max ${item.prnMaxPerDay}/day", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             if (item.pillsRemaining != null) {
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
@@ -174,6 +192,24 @@ fun ReminderDetailDialog(
                     color = if (item.needsRefill) Color(0xFFC2410C) else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold
                 )
+            }
+            item.expiryMillis?.let { expiry ->
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    if (item.isExpired) "Expired ${com.medisafe.util.DateTimeUtils.formatDate(expiry)}"
+                    else "Expires ${com.medisafe.util.DateTimeUtils.formatDate(expiry)}",
+                    color = if (item.isExpired || item.expirySoon) Color(0xFFB91C1C) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            if (item.pharmacyName.isNotBlank() || item.doctorName.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                if (item.pharmacyName.isNotBlank()) {
+                    Text("Pharmacy: ${item.pharmacyName}${if (item.pharmacyPhone.isNotBlank()) " · ${item.pharmacyPhone}" else ""}", style = MaterialTheme.typography.bodySmall)
+                }
+                if (item.doctorName.isNotBlank()) {
+                    Text("Doctor: ${item.doctorName}${if (item.doctorPhone.isNotBlank()) " · ${item.doctorPhone}" else ""}", style = MaterialTheme.typography.bodySmall)
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -334,6 +370,15 @@ fun ReminderDetailDialog(
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
+            }
+
+            if (item.categoryEnum == ReminderCategory.MEDICATION) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { onRefill(item) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) { Text("Log refill") }
             }
 
             if (!item.isCompleted) {

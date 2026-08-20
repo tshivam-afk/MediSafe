@@ -68,14 +68,24 @@ class ReminderRepository(
         ReminderAppWidgetProvider.updateAllWidgets(appContext)
     }
 
-    suspend fun markDoneOrTaken(reminder: ReminderItem): ReminderItem {
+    suspend fun markDoneOrTaken(reminder: ReminderItem, note: String = ""): ReminderItem {
         val now = System.currentTimeMillis()
         val lastAck = reminder.lastAcknowledgedMillis
         if (lastAck != null && now - lastAck < ACK_DEBOUNCE_MS) {
             return reminder
         }
+        if (reminder.isPrn && reminder.prnMaxPerDay > 0) {
+            val takenToday = reminderDao.getLogsForReminderSync(reminder.id).count { log ->
+                DateTimeUtils.isToday(log.timestampMillis) &&
+                    (log.actionEnum == LogAction.TAKEN || log.actionEnum == LogAction.COMPLETED)
+            }
+            if (takenToday >= reminder.prnMaxPerDay) {
+                return reminder
+            }
+        }
         val isMed = reminder.categoryEnum == ReminderCategory.MEDICATION
         val action = if (isMed) LogAction.TAKEN else LogAction.COMPLETED
+        val logNote = note.trim().ifBlank { "Marked ${action.displayName}" }
 
         reminderDao.insertLog(
             ReminderLog(
@@ -84,7 +94,7 @@ class ReminderRepository(
                 category = reminder.category,
                 action = action.name,
                 timestampMillis = now,
-                note = "Marked ${action.displayName}"
+                note = logNote
             )
         )
 
@@ -93,27 +103,64 @@ class ReminderRepository(
             pills = (pills - 1).coerceAtLeast(0)
         }
 
-        val updated = if (reminder.recurrenceEnum == RecurrenceType.ONCE) {
-            reminder.copy(
+        val updated = when {
+            reminder.isPrn -> reminder.copy(
+                snoozedUntilMillis = null,
+                lastAcknowledgedMillis = now,
+                pillsRemaining = pills
+            )
+            reminder.recurrenceEnum == RecurrenceType.ONCE -> reminder.copy(
                 isCompleted = true,
                 completedAtMillis = now,
                 snoozedUntilMillis = null,
                 lastAcknowledgedMillis = now,
                 pillsRemaining = pills
             )
-        } else {
-            reminder.copy(
-                scheduledTimeMillis = nextOccurrence(reminder, now),
-                isCompleted = false,
-                completedAtMillis = null,
-                snoozedUntilMillis = null,
-                lastAcknowledgedMillis = now,
-                pillsRemaining = pills
-            )
+            else -> {
+                val next = nextOccurrence(reminder, now)
+                if (next <= 0L) {
+                    reminder.copy(
+                        isCompleted = true,
+                        isActive = false,
+                        completedAtMillis = now,
+                        snoozedUntilMillis = null,
+                        lastAcknowledgedMillis = now,
+                        pillsRemaining = pills
+                    )
+                } else {
+                    reminder.copy(
+                        scheduledTimeMillis = next,
+                        isCompleted = false,
+                        completedAtMillis = null,
+                        snoozedUntilMillis = null,
+                        lastAcknowledgedMillis = now,
+                        pillsRemaining = pills
+                    )
+                }
+            }
         }
         reminderDao.updateReminder(updated)
         syncAlarm(updated)
         maybeNotifyRefill(updated)
+        ReminderAppWidgetProvider.updateAllWidgets(appContext)
+        return updated
+    }
+
+    suspend fun refillPills(reminder: ReminderItem, amount: Int): ReminderItem {
+        val add = amount.coerceIn(1, 9_999)
+        val nextCount = (reminder.pillsRemaining ?: 0) + add
+        val updated = reminder.copy(pillsRemaining = nextCount)
+        reminderDao.updateReminder(updated)
+        reminderDao.insertLog(
+            ReminderLog(
+                reminderId = reminder.id,
+                reminderTitle = reminder.title,
+                category = reminder.category,
+                action = LogAction.REFILLED.name,
+                timestampMillis = System.currentTimeMillis(),
+                note = "Added $add · now $nextCount"
+            )
+        )
         ReminderAppWidgetProvider.updateAllWidgets(appContext)
         return updated
     }
@@ -150,21 +197,37 @@ class ReminderRepository(
                 note = "Skipped scheduled dose/task"
             )
         )
-        val updated = if (reminder.recurrenceEnum == RecurrenceType.ONCE) {
-            reminder.copy(
+        val updated = when {
+            reminder.isPrn -> reminder.copy(
+                snoozedUntilMillis = null,
+                lastAcknowledgedMillis = now
+            )
+            reminder.recurrenceEnum == RecurrenceType.ONCE -> reminder.copy(
                 isCompleted = true,
                 completedAtMillis = now,
                 snoozedUntilMillis = null,
                 lastAcknowledgedMillis = now
             )
-        } else {
-            reminder.copy(
-                scheduledTimeMillis = nextOccurrence(reminder, now),
-                isCompleted = false,
-                completedAtMillis = null,
-                snoozedUntilMillis = null,
-                lastAcknowledgedMillis = now
-            )
+            else -> {
+                val next = nextOccurrence(reminder, now)
+                if (next <= 0L) {
+                    reminder.copy(
+                        isCompleted = true,
+                        isActive = false,
+                        completedAtMillis = now,
+                        snoozedUntilMillis = null,
+                        lastAcknowledgedMillis = now
+                    )
+                } else {
+                    reminder.copy(
+                        scheduledTimeMillis = next,
+                        isCompleted = false,
+                        completedAtMillis = null,
+                        snoozedUntilMillis = null,
+                        lastAcknowledgedMillis = now
+                    )
+                }
+            }
         }
         reminderDao.updateReminder(updated)
         syncAlarm(updated)
@@ -177,7 +240,7 @@ class ReminderRepository(
         val grace = graceMinutes * 60 * 1000L
         val reminders = reminderDao.getActiveRemindersSync()
         reminders.forEach { reminder ->
-            if (reminder.isCompleted) return@forEach
+            if (reminder.isCompleted || reminder.isPrn) return@forEach
             val dueAt = reminder.scheduledTimeMillis
             if (dueAt > now - grace) return@forEach
             val lastAck = reminder.lastAcknowledgedMillis ?: reminder.createdAtMillis
@@ -316,7 +379,7 @@ class ReminderRepository(
     }
 
     private fun syncAlarm(reminder: ReminderItem) {
-        if (reminder.isActive && !reminder.isCompleted) {
+        if (reminder.shouldAlert) {
             AlarmScheduler.scheduleReminderAlarm(appContext, reminder)
         } else {
             AlarmScheduler.cancelReminderAlarm(appContext, reminder.id)

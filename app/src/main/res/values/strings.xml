@@ -6,6 +6,7 @@
     <string name="widget_empty_details">Tap to add a new medication or task</string>
     <string name="widget_empty_time">All caught up</string>
     <string name="widget_open_app">OPEN APP</string>
+    <string name="widget_take">TAKE</string>
     <string name="widget_badge_upcoming">Upcoming</string>
     <string name="shortcut_add_short">Add med</string>
     <string name="shortcut_add_long">Add a medication reminder</string>

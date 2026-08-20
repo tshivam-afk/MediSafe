@@ -27,6 +27,17 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_AUTO_UPDATE, true)
         set(value) = prefs.edit().putBoolean(KEY_AUTO_UPDATE, value).apply()
 
+    var vacationUntilMillis: Long
+        get() = prefs.getLong(KEY_VACATION_UNTIL, 0L)
+        set(value) = prefs.edit().putLong(KEY_VACATION_UNTIL, value).apply()
+
+    val isOnVacation: Boolean
+        get() = vacationUntilMillis > System.currentTimeMillis()
+
+    var homeSort: String
+        get() = prefs.getString(KEY_HOME_SORT, "NEXT_DUE") ?: "NEXT_DUE"
+        set(value) = prefs.edit().putString(KEY_HOME_SORT, value).apply()
+
     val hasPin: Boolean
         get() = !prefs.getString(KEY_PIN_HASH, null).isNullOrBlank()
 
