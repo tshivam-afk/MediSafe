@@ -444,9 +444,19 @@ fun AddEditReminderSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    SettingSwitch("Notification sound", Icons.Outlined.Notifications, soundEnabled) { soundEnabled = it }
+                    SettingSwitch(
+                        label = "Notification sound",
+                        icon = Icons.Outlined.Notifications,
+                        checked = soundEnabled,
+                        onCheckedChange = { soundEnabled = it }
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
-                    SettingSwitch("Vibrate on alert", Icons.Outlined.Vibration, vibrateEnabled) { vibrateEnabled = it }
+                    SettingSwitch(
+                        label = "Vibrate on alert",
+                        icon = Icons.Outlined.Vibration,
+                        checked = vibrateEnabled,
+                        onCheckedChange = { vibrateEnabled = it }
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     // Opt-in per reminder; never forced by priority. Requires the Alarm
                     // Reliability master switch in Settings — until that is on the row is
