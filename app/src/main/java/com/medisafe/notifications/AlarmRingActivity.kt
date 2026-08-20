@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.lifecycleScope
 import com.medisafe.data.database.AppDatabase
 import com.medisafe.data.model.ReminderCategory
 import com.medisafe.data.model.ReminderItem
@@ -48,7 +49,7 @@ import com.medisafe.data.repository.ReminderRepository
 import com.medisafe.ui.theme.MediSafeTheme
 import com.medisafe.widget.ReminderAppWidgetProvider
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class AlarmRingActivity : FragmentActivity() {
@@ -100,14 +101,18 @@ class AlarmRingActivity : FragmentActivity() {
 
     private fun act(block: suspend (ReminderItem) -> Unit) {
         val id = intent?.getLongExtra(AlarmScheduler.EXTRA_REMINDER_ID, -1L) ?: -1L
-        Thread {
+        // Room's DAO is suspending, so this has to run in a coroutine rather than a
+        // bare Thread. lifecycleScope keeps it tied to this Activity.
+        lifecycleScope.launch {
             runCatching {
-                val reminder = repo().getReminderById(id) ?: return@runCatching
-                runBlocking { block(reminder) }
-                ReminderAppWidgetProvider.updateAllWidgets(this)
+                withContext(Dispatchers.IO) {
+                    val reminder = repo().getReminderById(id) ?: return@withContext
+                    block(reminder)
+                    ReminderAppWidgetProvider.updateAllWidgets(this@AlarmRingActivity)
+                }
             }
-            runOnUiThread { stopAndFinish() }
-        }.start()
+            stopAndFinish()
+        }
     }
 
     private fun repo() = ReminderRepository(
