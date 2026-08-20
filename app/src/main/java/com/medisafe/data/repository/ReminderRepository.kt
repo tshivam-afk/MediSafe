@@ -10,6 +10,7 @@ import com.medisafe.data.model.RecurrenceType
 import com.medisafe.data.model.ReminderCategory
 import com.medisafe.data.model.ReminderItem
 import com.medisafe.data.model.ReminderLog
+import com.medisafe.notifications.AlarmPlayer
 import com.medisafe.notifications.AlarmScheduler
 import com.medisafe.notifications.NotificationHelper
 import com.medisafe.util.DateTimeUtils
@@ -142,6 +143,7 @@ class ReminderRepository(
         reminderDao.updateReminder(updated)
         syncAlarm(updated)
         maybeNotifyRefill(updated)
+        AlarmPlayer.stop()
         ReminderAppWidgetProvider.updateAllWidgets(appContext)
         return updated
     }
@@ -181,6 +183,7 @@ class ReminderRepository(
             )
         )
         AlarmScheduler.scheduleReminderAlarm(appContext, updated)
+        AlarmPlayer.stop()
         ReminderAppWidgetProvider.updateAllWidgets(appContext)
         return updated
     }
@@ -231,6 +234,7 @@ class ReminderRepository(
         }
         reminderDao.updateReminder(updated)
         syncAlarm(updated)
+        AlarmPlayer.stop()
         ReminderAppWidgetProvider.updateAllWidgets(appContext)
         return updated
     }

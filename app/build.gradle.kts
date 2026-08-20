@@ -20,7 +20,7 @@ android {
     applicationId = "com.medisafe.app"
     minSdk = 24
     targetSdk = 36
-    val appVersion = System.getenv("APP_VERSION")?.removePrefix("v")?.takeIf { it.isNotBlank() } ?: "1.0.6"
+    val appVersion = System.getenv("APP_VERSION")?.removePrefix("v")?.takeIf { it.isNotBlank() } ?: "1.0.7"
     versionName = appVersion
     versionCode = semverCode(appVersion)
     buildConfigField("String", "GITHUB_OWNER", "\"tshivam-afk\"")

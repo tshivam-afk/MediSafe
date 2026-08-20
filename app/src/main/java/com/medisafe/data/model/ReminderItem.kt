@@ -48,7 +48,8 @@ data class ReminderItem(
     val pharmacyName: String = "",
     val pharmacyPhone: String = "",
     val doctorName: String = "",
-    val doctorPhone: String = ""
+    val doctorPhone: String = "",
+    val alertAsAlarm: Boolean = false
 ) {
     val categoryEnum: ReminderCategory
         get() = runCatching { ReminderCategory.valueOf(category) }.getOrDefault(ReminderCategory.MEDICATION)

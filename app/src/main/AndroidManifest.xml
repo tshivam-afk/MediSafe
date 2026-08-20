@@ -43,6 +43,17 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
+        <activity
+            android:name=".notifications.AlarmRingActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:showOnLockScreen="true"
+            android:showWhenLocked="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.MediSafe"
+            android:turnScreenOn="true" />
+
         <receiver
             android:name=".notifications.ReminderAlarmReceiver"
             android:exported="false" />

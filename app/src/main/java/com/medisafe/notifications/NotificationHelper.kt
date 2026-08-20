@@ -18,6 +18,8 @@ object NotificationHelper {
     const val CHANNEL_NAME = "Medication & Task Reminders"
     const val CHANNEL_STATUS_ID = "channel_med_status"
     const val CHANNEL_STATUS_NAME = "Refills & daily recap"
+    const val CHANNEL_ALARM_ID = "channel_med_alarms"
+    const val CHANNEL_ALARM_NAME = "Alarm-style reminders"
 
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -37,6 +39,23 @@ object NotificationHelper {
                     vibrationPattern = longArrayOf(0, 500, 200, 500)
                     setSound(soundUri, audioAttributes)
                     setShowBadge(true)
+                }
+            )
+        }
+        if (manager.getNotificationChannel(CHANNEL_ALARM_ID) == null) {
+            val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            val alarmAttrs = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .build()
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_ALARM_ID, CHANNEL_ALARM_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Full-screen looping alarm for selected medications, tasks, and events"
+                    enableVibration(true)
+                    vibrationPattern = longArrayOf(0, 700, 400, 700)
+                    setSound(alarmUri, alarmAttrs)
+                    setShowBadge(true)
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 }
             )
         }

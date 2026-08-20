@@ -160,6 +160,17 @@ fun ReminderListItem(
                     )
 
                     // Priority Badge if High or Urgent
+                    if (item.alertAsAlarm) {
+                        Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFFFEE2E2)) {
+                            Text(
+                                text = "ALARM",
+                                color = Color(0xFFB91C1C),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
                     if (item.isPrn) {
                         Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFFE0E7FF)) {
                             Text(

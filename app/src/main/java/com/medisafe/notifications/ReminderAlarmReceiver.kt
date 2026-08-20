@@ -125,6 +125,7 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         }
         val food = dbItem?.foodTimingEnum?.displayName
         val sticky = dbItem?.isStickyAlert() == true
+        val asAlarm = dbItem?.alertAsAlarm == true
         val contentText = buildString {
             val dose = dbItem?.doseLabel?.ifBlank { details } ?: details
             append(dose.ifBlank { "It's time for your scheduled reminder." })
@@ -134,7 +135,19 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             }
         }
 
-        val notificationBuilder = NotificationCompat.Builder(context, NotificationHelper.CHANNEL_ID)
+        val alarmScreen = Intent(context, AlarmRingActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(AlarmScheduler.EXTRA_REMINDER_ID, reminderId)
+        }
+        val alarmPending = PendingIntent.getActivity(
+            context,
+            AlarmScheduler.requestCode(reminderId, 5),
+            alarmScreen,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val channel = if (asAlarm) NotificationHelper.CHANNEL_ALARM_ID else NotificationHelper.CHANNEL_ID
+        val notificationBuilder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(headerTitle)
             .setContentText(contentText)
@@ -142,24 +155,34 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
                 NotificationCompat.BigTextStyle()
                     .bigText("$contentText\nScheduled for ${DateTimeUtils.formatTime(System.currentTimeMillis())}")
             )
-            .setPriority(if (sticky) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setAutoCancel(!sticky)
-            .setOngoing(sticky)
-            .setOnlyAlertOnce(true)
-            .setContentIntent(contentPendingIntent)
+            .setPriority(if (asAlarm || sticky) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
+            .setCategory(if (asAlarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
+            .setAutoCancel(!sticky && !asAlarm)
+            .setOngoing(sticky || asAlarm)
+            .setOnlyAlertOnce(!asAlarm)
+            .setContentIntent(if (asAlarm) alarmPending else contentPendingIntent)
             .addAction(0, actionDoneTitle, donePendingIntent)
             .addAction(0, "Snooze 15m", snoozePendingIntent)
             .addAction(0, "Skip", skipPendingIntent)
 
-        if (hasVibrate) {
-            notificationBuilder.setVibrate(longArrayOf(0, 500, 200, 500))
-        }
-        if (hasSound) {
-            notificationBuilder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
+        if (asAlarm) {
+            notificationBuilder.setFullScreenIntent(alarmPending, true)
+            notificationBuilder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+            notificationBuilder.setVibrate(longArrayOf(0, 700, 400, 700, 400))
+        } else {
+            if (hasVibrate) {
+                notificationBuilder.setVibrate(longArrayOf(0, 500, 200, 500))
+            }
+            if (hasSound) {
+                notificationBuilder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
+            }
         }
 
         notificationManager.notify(AlarmScheduler.requestCode(reminderId), notificationBuilder.build())
+
+        if (asAlarm) {
+            runCatching { context.startActivity(alarmScreen) }
+        }
 
         if (dbItem != null && dbItem.recurrenceEnum != RecurrenceType.ONCE && dbItem.snoozedUntilMillis == null) {
             AlarmScheduler.scheduleReminderAlarm(context, dbItem)
@@ -168,17 +191,32 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
     }
 
     private suspend fun handleMarkDone(context: Context, reminderId: Long) {
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.cancel(AlarmScheduler.requestCode(reminderId))
+        stopRinging(context, reminderId)
         val item = repository(context).getReminderById(reminderId) ?: return
         repository(context).markDoneOrTaken(item)
     }
 
     private suspend fun handleSnooze(context: Context, reminderId: Long) {
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.cancel(AlarmScheduler.requestCode(reminderId))
+        stopRinging(context, reminderId)
         val item = repository(context).getReminderById(reminderId) ?: return
         repository(context).snoozeReminder(item, 15)
+    }
+
+    private suspend fun handleSkip(context: Context, reminderId: Long) {
+        stopRinging(context, reminderId)
+        val item = repository(context).getReminderById(reminderId) ?: return
+        repository(context).skipReminder(item)
+    }
+
+    private fun stopRinging(context: Context, reminderId: Long) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(AlarmScheduler.requestCode(reminderId))
+        AlarmPlayer.stop()
+        runCatching {
+            context.sendBroadcast(
+                Intent(AlarmRingActivity.ACTION_STOP_RINGING).setPackage(context.packageName)
+            )
+        }
     }
 
     private suspend fun handleDailyRecap(context: Context) {

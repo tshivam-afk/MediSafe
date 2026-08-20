@@ -69,6 +69,7 @@ object BackupManager {
             put("pharmacyPhone", item.pharmacyPhone)
             put("doctorName", item.doctorName)
             put("doctorPhone", item.doctorPhone)
+            put("alertAsAlarm", item.alertAsAlarm)
         }
     }
 
@@ -108,7 +109,8 @@ object BackupManager {
             pharmacyName = json.optString("pharmacyName"),
             pharmacyPhone = json.optString("pharmacyPhone"),
             doctorName = json.optString("doctorName"),
-            doctorPhone = json.optString("doctorPhone")
+            doctorPhone = json.optString("doctorPhone"),
+            alertAsAlarm = json.optBoolean("alertAsAlarm", false)
         )
     }
 

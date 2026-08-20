@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Vibration
 import androidx.compose.material3.AlertDialog
@@ -125,6 +126,7 @@ fun AddEditReminderSheet(
     var pharmacyPhone by remember { mutableStateOf(initialItem.pharmacyPhone) }
     var doctorName by remember { mutableStateOf(initialItem.doctorName) }
     var doctorPhone by remember { mutableStateOf(initialItem.doctorPhone) }
+    var alertAsAlarm by remember { mutableStateOf(initialItem.alertAsAlarm) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -304,7 +306,60 @@ fun AddEditReminderSheet(
                 )
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("As needed (PRN) — no alarm", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                Switch(checked = isPrn, onCheckedChange = { isPrn = it })
+            }
+            if (isPrn) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = prnMax.toString(),
+                    onValueChange = { prnMax = it.filter(Char::isDigit).toIntOrNull()?.coerceIn(1, 12) ?: 1 },
+                    label = { Text("Max times per day") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = courseDaysText,
+                onValueChange = { courseDaysText = it.filter(Char::isDigit).take(3) },
+                label = { Text("Course length in days (optional)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+
             if (selectedCategory == ReminderCategory.MEDICATION) {
+                Spacer(modifier = Modifier.height(16.dp))
+                SectionLabel("STRENGTH & FORM")
+                OutlinedTextField(
+                    value = strength,
+                    onValueChange = { strength = it.take(24) },
+                    label = { Text("Strength (e.g. 500 mg)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    MedForm.entries.filter { it != MedForm.NONE }.forEach { option ->
+                        FilterChip(
+                            selected = form == option,
+                            onClick = { form = if (form == option) MedForm.NONE else option },
+                            label = { Text(option.displayName) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                SectionLabel("FOOD")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FoodTiming.entries.forEach { option ->
+                        FilterChip(
+                            selected = foodTiming == option,
+                            onClick = { foodTiming = option },
+                            label = { Text(option.displayName) }
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(16.dp))
                 SectionLabel("REFILL TRACKING")
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -381,6 +436,22 @@ fun AddEditReminderSheet(
                     SettingSwitch("Notification sound", Icons.Outlined.Notifications, soundEnabled) { soundEnabled = it }
                     Spacer(modifier = Modifier.height(8.dp))
                     SettingSwitch("Vibrate on alert", Icons.Outlined.Vibration, vibrateEnabled) { vibrateEnabled = it }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SettingSwitch("Ring like an alarm", Icons.Outlined.Alarm, alertAsAlarm) {
+                        alertAsAlarm = it
+                        if (it) {
+                            soundEnabled = true
+                            vibrateEnabled = true
+                        }
+                    }
+                    if (alertAsAlarm) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Full-screen + looping alarm until you take, snooze, or skip.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
