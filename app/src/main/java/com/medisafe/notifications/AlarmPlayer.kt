@@ -57,10 +57,11 @@ object AlarmPlayer {
 
         if (sound) {
             val prefs = AppPreferences(context)
-            if (prefs.forceAlarmVolume || critical) {
+            val reliabilityOn = prefs.alarmReliabilityEnabled
+            if ((reliabilityOn && prefs.forceAlarmVolume) || critical) {
                 raiseAlarmVolume(context, critical)
             }
-            startTone(context, gradual = prefs.gradualAlarmVolume && !critical)
+            startTone(context, gradual = reliabilityOn && prefs.gradualAlarmVolume && !critical)
         }
 
         if (vibrate) {

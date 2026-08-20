@@ -348,6 +348,7 @@ fun MainScreen(
                     onToggleSelect = { viewModel.startOrToggleSelection(it) },
                     homeSort = homeSort,
                     onSort = { viewModel.setHomeSort(it) },
+                    alarmReliabilityEnabled = viewModel.preferences.alarmReliabilityEnabled,
                     vacationUntilMillis = vacationUntil,
                     onResumeAlerts = { viewModel.setVacationDays(0) },
                     sameSlotCount = viewModel.sameSlotBatch(nextUpcomingReminder).size,
@@ -389,7 +390,9 @@ fun MainScreen(
         AddEditReminderSheet(
             initialItem = sheetReminder,
             onDismiss = { viewModel.closeSheet() },
-            onSave = { viewModel.saveReminder(it) }
+            onSave = { viewModel.saveReminder(it) },
+            alarmReliabilityEnabled = viewModel.preferences.alarmReliabilityEnabled,
+            onOpenSettings = { viewModel.openSettings() }
         )
     }
     if (showSettings) {
@@ -427,6 +430,7 @@ fun MainScreen(
     if (detailReminder != null) {
         ReminderDetailDialog(
             item = detailReminder,
+            alarmReliabilityEnabled = viewModel.preferences.alarmReliabilityEnabled,
             currentTimeMillis = currentTimeMillis,
             onDismiss = { viewModel.closeDetail() },
             onTakeOrDone = { viewModel.requestTake(it) },
@@ -490,6 +494,7 @@ private fun HomePane(
     onToggleSelect: (com.medisafe.data.model.ReminderItem) -> Unit,
     homeSort: HomeSort,
     onSort: (HomeSort) -> Unit,
+    alarmReliabilityEnabled: Boolean,
     vacationUntilMillis: Long,
     onResumeAlerts: () -> Unit,
     sameSlotCount: Int,
@@ -622,6 +627,7 @@ private fun HomePane(
                 items(filteredReminders, key = { it.id }) { item ->
                     ReminderListItem(
                         item = item,
+                        alarmReliabilityEnabled = alarmReliabilityEnabled,
                         currentTimeMillis = currentTimeMillis,
                         onTakeOrDone = onTake,
                         onEdit = onEdit,

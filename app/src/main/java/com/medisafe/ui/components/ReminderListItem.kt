@@ -71,6 +71,7 @@ fun ReminderListItem(
     onLongClick: (ReminderItem) -> Unit = {},
     selected: Boolean = false,
     selectionMode: Boolean = false,
+    alarmReliabilityEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
@@ -159,8 +160,8 @@ fun ReminderListItem(
                         modifier = Modifier.weight(1f, fill = false)
                     )
 
-                    // Shown for the explicit switch and for high/urgent, which always ring.
-                    if (item.ringsAsAlarm) {
+                    // Only meaningful while the Alarm Reliability feature is on.
+                    if (item.ringsAsAlarm && alarmReliabilityEnabled) {
                         Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFFFEE2E2)) {
                             Text(
                                 text = "ALARM",

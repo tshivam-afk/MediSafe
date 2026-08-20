@@ -8,8 +8,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Guards the rule that high/urgent reminders always ring like an alarm, which is what
- * makes them audible with the screen off.
+ * Guards the rule that ringing like an alarm is purely opt-in per reminder — priority
+ * alone never forces it. Urgent items additionally get the critical audio path (max
+ * volume, no fade-in) but only when the reminder itself opted in.
  */
 class AlarmEscalationTest {
 
@@ -24,45 +25,45 @@ class AlarmEscalationTest {
     )
 
     @Test
-    fun highPriorityRingsAsAlarmWithoutTheSwitch() {
-        assertTrue(item(priority = Priority.HIGH).ringsAsAlarm)
+    fun highPriorityDoesNotForceAlarmRinging() {
+        assertFalse(item(priority = Priority.HIGH).ringsAsAlarm)
+        assertTrue(item(priority = Priority.HIGH, alertAsAlarm = true).ringsAsAlarm)
     }
 
     @Test
-    fun urgentPriorityRingsAsAlarmWithoutTheSwitch() {
-        assertTrue(item(priority = Priority.URGENT).ringsAsAlarm)
+    fun urgentPriorityDoesNotForceAlarmRinging() {
+        assertFalse(item(priority = Priority.URGENT).ringsAsAlarm)
+        assertTrue(item(priority = Priority.URGENT, alertAsAlarm = true).ringsAsAlarm)
     }
 
     @Test
-    fun normalPriorityOnlyRingsWhenSwitchIsOn() {
+    fun ringingIsOptInForEachReminder() {
+        assertFalse(item().ringsAsAlarm)
         assertFalse(item(priority = Priority.NORMAL).ringsAsAlarm)
-        assertTrue(item(priority = Priority.NORMAL, alertAsAlarm = true).ringsAsAlarm)
-    }
-
-    @Test
-    fun lowPriorityNeverRingsByItself() {
         assertFalse(item(priority = Priority.LOW).ringsAsAlarm)
+        assertTrue(item(alertAsAlarm = true).ringsAsAlarm)
     }
 
     @Test
     fun onlyUrgentIsCritical() {
-        assertTrue(item(priority = Priority.URGENT).isCritical)
-        assertFalse(item(priority = Priority.HIGH).isCritical)
-        assertFalse(item(priority = Priority.NORMAL, alertAsAlarm = true).isCritical)
+        assertTrue(item(priority = Priority.URGENT, alertAsAlarm = true).isCritical)
+        assertFalse(item(priority = Priority.HIGH, alertAsAlarm = true).isCritical)
+        assertFalse(item(alertAsAlarm = true).isCritical)
+        assertFalse(item(priority = Priority.URGENT).isCritical)
     }
 
     @Test
-    fun priorityDrivenAlarmsExplainThemselves() {
-        assertEquals("Urgent priority · always rings", item(priority = Priority.URGENT).alarmReasonLabel)
-        assertEquals("High priority · always rings", item(priority = Priority.HIGH).alarmReasonLabel)
+    fun alarmReasonLabelFollowsTheSwitchNotPriority() {
         assertEquals("Ring like an alarm", item(alertAsAlarm = true).alarmReasonLabel)
         assertEquals("", item().alarmReasonLabel)
+        assertEquals("", item(priority = Priority.URGENT).alarmReasonLabel)
+        assertEquals("", item(priority = Priority.HIGH).alarmReasonLabel)
     }
 
     @Test
     fun stickyAlertStillMatchesHighAndUrgent() {
         assertTrue(item(priority = Priority.HIGH).isStickyAlert())
         assertTrue(item(priority = Priority.URGENT).isStickyAlert())
-        assertFalse(item(priority = Priority.NORMAL).isStickyAlert())
+        assertFalse(item().isStickyAlert())
     }
 }

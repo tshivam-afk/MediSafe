@@ -3,6 +3,7 @@ package com.medisafe
 import androidx.test.core.app.ApplicationProvider
 import com.medisafe.data.prefs.AppPreferences
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -16,13 +17,23 @@ class AlarmPreferencesTest {
     private fun prefs() = AppPreferences(ApplicationProvider.getApplicationContext<android.content.Context>())
 
     @Test
-    fun alarmDefaultsAreSensible() {
+    fun alarmFeatureIsOffByDefault() {
         val p = prefs()
-        assertTrue("alarms should override silent by default", p.forceAlarmVolume)
-        assertTrue("alarms should fade in by default", p.gradualAlarmVolume)
+        assertFalse("alarm reliability must default to off", p.alarmReliabilityEnabled)
+        assertFalse("silent-mode override must default to off", p.forceAlarmVolume)
+        assertFalse("fade-in must default to off", p.gradualAlarmVolume)
+        assertEquals("re-ring must default to off", 0, p.escalationMinutes)
         assertEquals(5, p.alarmTimeoutMinutes)
-        assertEquals(5, p.escalationMinutes)
         assertEquals(3, p.escalationMaxAttempts)
+    }
+
+    @Test
+    fun masterToggleRoundTrips() {
+        val p = prefs()
+        p.alarmReliabilityEnabled = true
+        assertTrue(p.alarmReliabilityEnabled)
+        p.alarmReliabilityEnabled = false
+        assertFalse(p.alarmReliabilityEnabled)
     }
 
     @Test
@@ -46,10 +57,10 @@ class AlarmPreferencesTest {
     @Test
     fun togglesRoundTrip() {
         val p = prefs()
-        p.forceAlarmVolume = false
-        p.gradualAlarmVolume = false
-        assertEquals(false, p.forceAlarmVolume)
-        assertEquals(false, p.gradualAlarmVolume)
+        p.forceAlarmVolume = true
+        p.gradualAlarmVolume = true
+        assertEquals(true, p.forceAlarmVolume)
+        assertEquals(true, p.gradualAlarmVolume)
     }
 
     @Test

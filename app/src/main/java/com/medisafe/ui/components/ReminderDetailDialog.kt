@@ -60,6 +60,7 @@ import com.medisafe.util.DateTimeUtils
 @Composable
 fun ReminderDetailDialog(
     item: ReminderItem?,
+    alarmReliabilityEnabled: Boolean = true,
     currentTimeMillis: Long,
     onDismiss: () -> Unit,
     onTakeOrDone: (ReminderItem) -> Unit,
@@ -180,10 +181,10 @@ fun ReminderDetailDialog(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(item.foodTimingEnum.displayName, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F766E))
             }
-            if (item.ringsAsAlarm) {
+            if (item.ringsAsAlarm && alarmReliabilityEnabled) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    "Rings like an alarm until you act · ${item.alarmReasonLabel}",
+                    "Rings like an alarm until you take, snooze or skip",
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFFB91C1C)
                 )

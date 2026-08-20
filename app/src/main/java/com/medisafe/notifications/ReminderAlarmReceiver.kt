@@ -127,8 +127,11 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         }
         val food = dbItem?.foodTimingEnum?.displayName
         val sticky = dbItem?.isStickyAlert() == true
-        // High/urgent items ring as alarms even without the per-item switch.
-        val asAlarm = dbItem?.ringsAsAlarm ?: intent.getBooleanExtra(AlarmScheduler.EXTRA_AS_ALARM, false)
+        // An item only rings as an alarm if its own switch is on AND the Alarm Reliability
+        // master switch is enabled in Settings.
+        val alarmReliabilityOn = AppPreferences(context).alarmReliabilityEnabled
+        val asAlarm = (dbItem?.ringsAsAlarm ?: intent.getBooleanExtra(AlarmScheduler.EXTRA_AS_ALARM, false)) &&
+            alarmReliabilityOn
         val contentText = buildString {
             val dose = dbItem?.doseLabel?.ifBlank { details } ?: details
             append(dose.ifBlank { "It's time for your scheduled reminder." })
@@ -206,8 +209,8 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
     }
 
     /**
-     * Fires when a high/urgent alarm timed out unanswered: ring again, then queue the
-     * next attempt until we run out of retries.
+     * Fires when an alarm timed out unanswered: ring again, then queue the next attempt
+     * until we run out of retries.
      */
     private suspend fun handleEscalate(context: Context, reminderId: Long, intent: Intent) {
         val attempt = intent.getIntExtra(AlarmScheduler.EXTRA_ATTEMPT, 1)
@@ -217,6 +220,7 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         val lastAck = item.lastAcknowledgedMillis ?: 0L
         if (lastAck >= item.scheduledTimeMillis) return
         if (AppPreferences(context).isOnVacation) return
+        if (!AppPreferences(context).alarmReliabilityEnabled) return
 
         AlarmService.start(context, reminderId)
         AlarmScheduler.scheduleEscalation(context, item, attempt + 1)

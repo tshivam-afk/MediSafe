@@ -131,12 +131,14 @@ object AlarmScheduler {
     }
 
     /**
-     * Re-rings an alarm that was never answered. Only applies to items that ring as alarms
-     * (high/urgent priority or the explicit switch) so ordinary reminders don't nag.
+     * Re-rings an alarm that was never answered. Only applies to items opted into ringing
+     * as alarms via the per-reminder switch, and only while Alarm Reliability is on in
+     * Settings, so ordinary reminders don't nag.
      */
     fun scheduleEscalation(context: Context, reminder: ReminderItem, attempt: Int) {
         if (!reminder.ringsAsAlarm) return
         val prefs = AppPreferences(context)
+        if (!prefs.alarmReliabilityEnabled) return
         val gap = prefs.escalationMinutes
         if (gap <= 0 || attempt > prefs.escalationMaxAttempts) return
         if (prefs.isOnVacation) return
@@ -259,6 +261,8 @@ object AlarmScheduler {
     }
 
     private fun triggerPendingIntent(context: Context, reminder: ReminderItem): PendingIntent {
+        // Alarm Reliability must be on in Settings for any reminder to ring as an alarm.
+        val ringsAsAlarm = reminder.ringsAsAlarm && AppPreferences(context).alarmReliabilityEnabled
         val intent = Intent(context, ReminderAlarmReceiver::class.java).apply {
             action = ACTION_TRIGGER_REMINDER
             putExtra(EXTRA_REMINDER_ID, reminder.id)
@@ -267,7 +271,7 @@ object AlarmScheduler {
             putExtra(EXTRA_CATEGORY, reminder.category)
             putExtra(EXTRA_SOUND, reminder.notificationSound)
             putExtra(EXTRA_VIBRATE, reminder.vibrate)
-            putExtra(EXTRA_AS_ALARM, reminder.ringsAsAlarm)
+            putExtra(EXTRA_AS_ALARM, ringsAsAlarm)
         }
         return PendingIntent.getBroadcast(
             context,

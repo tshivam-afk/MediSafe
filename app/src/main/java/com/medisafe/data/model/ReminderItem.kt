@@ -120,11 +120,14 @@ data class ReminderItem(
         priorityEnum == Priority.HIGH || priorityEnum == Priority.URGENT
 
     /**
-     * High and Urgent items always ring like a real alarm — full-screen, looping, and
-     * audible with the screen off — even if the per-item "Ring like an alarm" switch is off.
+     * Whether this reminder rings like a real alarm — full-screen, looping, and audible
+     * with the screen off. Purely opt-in per reminder via the "Ring like an alarm" switch;
+     * priority alone never forces it. The option also requires the Alarm Reliability
+     * master switch in Settings to be on — that gate is applied where alarms are
+     * scheduled (the model itself has no access to preferences).
      */
     val ringsAsAlarm: Boolean
-        get() = alertAsAlarm || priorityEnum == Priority.HIGH || priorityEnum == Priority.URGENT
+        get() = alertAsAlarm
 
     /** Urgent items additionally try to punch through Do Not Disturb and force alarm volume. */
     val isCritical: Boolean
@@ -132,10 +135,5 @@ data class ReminderItem(
 
     /** Why this item is ringing as an alarm, for display in the UI. */
     val alarmReasonLabel: String
-        get() = when {
-            priorityEnum == Priority.URGENT -> "Urgent priority · always rings"
-            priorityEnum == Priority.HIGH -> "High priority · always rings"
-            alertAsAlarm -> "Ring like an alarm"
-            else -> ""
-        }
+        get() = if (alertAsAlarm) "Ring like an alarm" else ""
 }

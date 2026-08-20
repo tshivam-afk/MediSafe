@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
@@ -82,6 +83,8 @@ fun AddEditReminderSheet(
     initialItem: ReminderItem?,
     onDismiss: () -> Unit,
     onSave: (ReminderItem) -> Unit,
+    alarmReliabilityEnabled: Boolean = true,
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (initialItem == null) return
@@ -127,6 +130,7 @@ fun AddEditReminderSheet(
     var doctorName by remember { mutableStateOf(initialItem.doctorName) }
     var doctorPhone by remember { mutableStateOf(initialItem.doctorPhone) }
     var alertAsAlarm by remember { mutableStateOf(initialItem.alertAsAlarm) }
+    var showAlarmReliabilityHint by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -427,6 +431,7 @@ fun AddEditReminderSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+            SectionLabel("ALERTS")
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -437,29 +442,34 @@ fun AddEditReminderSheet(
                     Spacer(modifier = Modifier.height(8.dp))
                     SettingSwitch("Vibrate on alert", Icons.Outlined.Vibration, vibrateEnabled) { vibrateEnabled = it }
                     Spacer(modifier = Modifier.height(8.dp))
-                    val forcedByPriority = priority == Priority.HIGH || priority == Priority.URGENT
+                    // Opt-in per reminder; never forced by priority. Requires the Alarm
+                    // Reliability master switch in Settings — until that is on the row is
+                    // grayed out and tapping it explains where to enable it.
                     SettingSwitch(
-                        if (forcedByPriority) "Ring like an alarm (always on for ${priority.displayName.lowercase()})"
-                        else "Ring like an alarm",
-                        Icons.Outlined.Alarm,
-                        alertAsAlarm || forcedByPriority
-                    ) {
-                        // High/urgent always ring, so the switch is locked on for them.
-                        if (!forcedByPriority) {
+                        label = "Ring like an alarm",
+                        icon = Icons.Outlined.Alarm,
+                        checked = alertAsAlarm && alarmReliabilityEnabled,
+                        enabled = alarmReliabilityEnabled,
+                        onCheckedChange = {
                             alertAsAlarm = it
                             if (it) {
                                 soundEnabled = true
                                 vibrateEnabled = true
                             }
-                        }
-                    }
-                    if (alertAsAlarm || forcedByPriority) {
+                        },
+                        onUnavailableTap = { showAlarmReliabilityHint = true }
+                    )
+                    if (!alarmReliabilityEnabled) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            if (forcedByPriority)
-                                "${priority.displayName} priority always rings a full-screen, looping alarm — " +
-                                    "even when the screen is off or the phone is silent."
-                            else "Full-screen + looping alarm until you take, snooze, or skip.",
+                            "Needs Alarm Reliability — enable it in Settings to use.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else if (alertAsAlarm) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Full-screen + looping alarm until you take, snooze, or skip.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -559,6 +569,29 @@ fun AddEditReminderSheet(
         ) { DatePicker(state = dateState) }
     }
 
+    if (showAlarmReliabilityHint) {
+        AlertDialog(
+            onDismissRequest = { showAlarmReliabilityHint = false },
+            title = { Text("Alarm Reliability is off") },
+            text = {
+                Text(
+                    "\"Ring like an alarm\" needs the Alarm Reliability feature. " +
+                        "Turn it on in Settings, then come back to give this reminder a " +
+                        "full-screen, looping alarm."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showAlarmReliabilityHint = false
+                    onOpenSettings()
+                }) { Text("Turn on in Settings") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAlarmReliabilityHint = false }) { Text("Not now") }
+            }
+        )
+    }
+
     if (showTimePicker) {
         val existing = timePickerTarget?.let { doseTimes.getOrNull(it) } ?: (8 to 0)
         val timeState = rememberTimePickerState(initialHour = existing.first, initialMinute = existing.second, is24Hour = false)
@@ -622,16 +655,50 @@ private fun SettingSwitch(
     label: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+    onUnavailableTap: (() -> Unit)? = null
 ) {
+    // When unavailable the row itself is tappable so we can explain what to enable;
+    // the Switch renders disabled (grayed) and installs no input handling of its own.
+    val rowModifier = if (!enabled && onUnavailableTap != null) {
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onUnavailableTap() }
+    } else {
+        Modifier.fillMaxWidth()
+    }
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = rowModifier,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (enabled) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            },
+            modifier = Modifier.size(20.dp)
+        )
         Spacer(modifier = Modifier.width(10.dp))
-        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Text(
+            label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (enabled) {
+                Color.Unspecified
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            }
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = if (enabled) onCheckedChange else null,
+            enabled = enabled
+        )
     }
 }
 
