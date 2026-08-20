@@ -173,11 +173,15 @@ object AlarmPlayer {
     private fun acquireWakeLock(context: Context) {
         if (wakeLock?.isHeld == true) return
         val power = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+        // Bound the lock to how long the alarm can actually ring (plus a small margin)
+        // rather than a fixed 10 minutes, so we never hold the CPU longer than needed.
+        val ringMinutes = AppPreferences(context).alarmTimeoutMinutes
+        val timeoutMs = (ringMinutes * 60_000L) + 30_000L
         runCatching {
             wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKELOCK_TAG).apply {
                 setReferenceCounted(false)
                 // Safety net: never leak the lock even if stop() is somehow missed.
-                acquire(10 * 60 * 1000L)
+                acquire(timeoutMs)
             }
         }.onFailure { Log.e(TAG, "Unable to acquire wake lock", it) }
     }

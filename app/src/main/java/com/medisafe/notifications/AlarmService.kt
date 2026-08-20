@@ -182,6 +182,13 @@ class AlarmService : Service() {
         autoStopRunnable?.let { handler.removeCallbacks(it) }
         autoStopRunnable = null
         AlarmPlayer.stop(applicationContext)
+        // Critical for battery: AlarmRingActivity holds FLAG_KEEP_SCREEN_ON, so if it is
+        // left open after the alarm stops it keeps the display awake indefinitely.
+        runCatching {
+            sendBroadcast(
+                Intent(AlarmRingActivity.ACTION_STOP_RINGING).setPackage(packageName)
+            )
+        }
         runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
         runCatching {
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)

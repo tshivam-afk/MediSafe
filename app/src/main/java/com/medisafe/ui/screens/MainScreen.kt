@@ -162,11 +162,19 @@ fun MainScreen(
                 viewModel.refreshNow()
                 val remaining = nextUpcomingReminder?.effectiveTriggerTimeMillis
                     ?.minus(System.currentTimeMillis())
+                // Back the tick rate off as the next dose gets further away. Ticking every
+                // 15-30s when nothing is due for hours just burns battery for no visible
+                // change: the countdown text only shows minutes at that range anyway.
                 val interval = when {
-                    section != AppSection.HOME && detailReminder == null -> 30_000L
-                    remaining == null -> 30_000L
+                    // Nothing time-sensitive on screen.
+                    section != AppSection.HOME && detailReminder == null -> 60_000L
+                    remaining == null -> 60_000L
+                    // Overdue or imminent: keep the countdown lively.
+                    remaining <= 60_000L -> 5_000L
                     remaining <= 15 * 60_000L -> 15_000L
-                    else -> 30_000L
+                    remaining <= 60 * 60_000L -> 30_000L
+                    // More than an hour out: once a minute is plenty.
+                    else -> 60_000L
                 }
                 delay(interval)
             }
