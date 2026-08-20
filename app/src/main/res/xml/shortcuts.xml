@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="add_medication"
+        android:shortcutShortLabel="@string/shortcut_add_short"
+        android:shortcutLongLabel="@string/shortcut_add_long">
+        <intent
+            android:action="com.medisafe.app.ADD_REMINDER"
+            android:targetClass="com.medisafe.MainActivity"
+            android:targetPackage="com.medisafe.app" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="next_reminder"
+        android:shortcutShortLabel="@string/shortcut_next_short"
+        android:shortcutLongLabel="@string/shortcut_next_long">
+        <intent
+            android:action="com.medisafe.app.OPEN_NEXT"
+            android:targetClass="com.medisafe.MainActivity"
+            android:targetPackage="com.medisafe.app" />
+    </shortcut>
+</shortcuts>

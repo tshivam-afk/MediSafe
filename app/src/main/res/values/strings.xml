@@ -1,3 +1,15 @@
 <resources>
-    <string name="app_name">Med &amp; Task Reminder</string>
+    <string name="app_name">MediSafe</string>
+    <string name="widget_description">Shows your next medication, task, or event reminder.</string>
+    <string name="widget_next_label">NEXT REMINDER</string>
+    <string name="widget_empty_title">No upcoming reminders</string>
+    <string name="widget_empty_details">Tap to add a new medication or task</string>
+    <string name="widget_empty_time">All caught up</string>
+    <string name="widget_open_app">OPEN APP</string>
+    <string name="widget_take">TAKE</string>
+    <string name="widget_badge_upcoming">Upcoming</string>
+    <string name="shortcut_add_short">Add med</string>
+    <string name="shortcut_add_long">Add a medication reminder</string>
+    <string name="shortcut_next_short">Next due</string>
+    <string name="shortcut_next_long">Open the next reminder</string>
 </resources>
